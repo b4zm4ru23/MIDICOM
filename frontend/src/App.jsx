@@ -20,23 +20,19 @@ function App() {
   // Playback system
   const { isPlaying, currentTime, duration, play, pause, stop, seek } = usePlayback(midiData)
 
-  // Debug: Check if Electron API is available
+  // Check Electron API availability (development only)
   useEffect(() => {
-    console.log('Electron API available:', !!window.electronAPI)
-    if (window.electronAPI) {
-      console.log('Electron API methods:', Object.keys(window.electronAPI))
+    if (process.env.NODE_ENV === 'development' && window.electronAPI) {
+      console.log('Electron API available with methods:', Object.keys(window.electronAPI))
     }
   }, [])
 
-  // Debug: Log MIDI data
+  // Log MIDI state changes (development only)
   useEffect(() => {
-    console.log('App Debug:')
-    console.log('- Selected MIDI:', selectedMidi)
-    console.log('- MIDI Data:', midiData)
-    console.log('- Is Playing:', isPlaying)
-    console.log('- Current Time:', currentTime)
-    console.log('- Duration:', duration)
-  }, [selectedMidi, midiData, isPlaying, currentTime, duration])
+    if (process.env.NODE_ENV === 'development' && selectedMidi) {
+      console.log('MIDI state:', { selectedMidi, isPlaying, currentTime: currentTime.toFixed(1) })
+    }
+  }, [selectedMidi, isPlaying, currentTime])
 
   // Update AudioContext state
   useEffect(() => {
@@ -93,7 +89,7 @@ function App() {
             setSelectedFile(file.name)
             setStems([])
             setSelectedMidi(null)
-            console.log('File selected:', file.name)
+            // File selected successfully
           }
         }
         input.click()
@@ -111,7 +107,7 @@ function App() {
       const result = await processAudio(selectedFile)
       if (result.success) {
         setStems(result.stems)
-        console.log('Audio processed successfully:', result)
+        // Audio processing completed
       } else {
         console.error('Processing failed:', result.error)
       }
@@ -139,7 +135,7 @@ function App() {
           const file = e.target.files[0]
           if (file) {
             setSelectedMidi(file.name)
-            console.log('MIDI file selected:', file.name)
+            // MIDI file selected successfully
           }
         }
         input.click()
@@ -153,7 +149,7 @@ function App() {
     try {
       // Ensure AudioContext is started
       if (Tone.context.state !== 'running') {
-        console.log('Starting AudioContext...')
+        // Starting AudioContext for playback
         await Tone.start()
       }
       
@@ -177,7 +173,7 @@ function App() {
       if (Tone.context.state !== 'running') {
         console.log('Initializing AudioContext...')
         await Tone.start()
-        console.log('AudioContext initialized successfully')
+        // AudioContext ready for playback
       }
     } catch (error) {
       console.error('Error initializing AudioContext:', error)
