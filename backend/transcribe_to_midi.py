@@ -58,14 +58,21 @@ class MIDITranscriber:
             return False
     
     def load_audio(self, file_path: str) -> Tuple[np.ndarray, int]:
-        """Carica e preprocessa audio"""
+        """Carica e preprocessa audio per analisi
+        
+        Args:
+            file_path: Path del file audio
+            
+        Returns:
+            Tuple[audio_data, sample_rate]: Audio mono e sample rate
+        """
         logger.info(f"🎵 Caricamento audio: {file_path}")
         
-        # Carica audio
-        y, sr = librosa.load(file_path, sr=self.sample_rate, mono=True)
+        # Carica audio mono a sample rate standardizzato
+        audio_data, sample_rate = librosa.load(file_path, sr=self.sample_rate, mono=True)
         
-        logger.info(f"📊 Audio caricato: {len(y)/sr:.1f}s, {sr}Hz")
-        return y, sr
+        logger.info(f"📊 Audio caricato: {len(audio_data)/sample_rate:.1f}s, {sample_rate}Hz")
+        return audio_data, sample_rate
     
     def detect_onsets(self, y: np.ndarray, sr: int) -> np.ndarray:
         """Rileva onset delle note usando spectral flux analysis
@@ -128,29 +135,37 @@ class MIDITranscriber:
         logger.info(f"✅ Pitch detection completata: {len(frequency)} note rilevate")
         return time, frequency
     
-    def detect_pitch_librosa(self, y: np.ndarray, sr: int) -> Tuple[np.ndarray, np.ndarray]:
-        """Pitch detection con librosa (fallback)"""
+    def detect_pitch_librosa(self, audio_data: np.ndarray, sample_rate: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Pitch detection con librosa (fallback quando CREPE non disponibile)
+        
+        Algoritmo:
+        1. Usa piptrack per pitch tracking
+        2. Trova pitch dominanti per ogni frame
+        3. Filtra pitch validi (threshold > 0)
+        """
         logger.info("🎯 Pitch detection con librosa...")
         
-        # Estrai pitch con librosa
+        # Estrai pitch con librosa piptrack
         pitches, magnitudes = librosa.piptrack(
-            y=y,
-            sr=sr,
+            y=audio_data,
+            sr=sample_rate,
             hop_length=self.hop_length,
             threshold=0.1
         )
         
-        # Trova pitch dominanti
-        times = librosa.frames_to_time(np.arange(pitches.shape[1]), sr=sr, hop_length=self.hop_length)
+        # Trova pitch dominanti per ogni frame
+        times = librosa.frames_to_time(np.arange(pitches.shape[1]), sr=sample_rate, hop_length=self.hop_length)
         frequencies = []
         valid_times = []
         
-        for t in range(pitches.shape[1]):
-            index = magnitudes[:, t].argmax()
-            pitch = pitches[index, t]
-            if pitch > 0:  # Pitch valido
-                frequencies.append(pitch)
-                valid_times.append(times[t])
+        for frame_idx in range(pitches.shape[1]):
+            # Trova pitch con magnitudine massima
+            max_magnitude_idx = magnitudes[:, frame_idx].argmax()
+            pitch_frequency = pitches[max_magnitude_idx, frame_idx]
+            
+            if pitch_frequency > 0:  # Pitch valido
+                frequencies.append(pitch_frequency)
+                valid_times.append(times[frame_idx])
         
         frequencies = np.array(frequencies)
         valid_times = np.array(valid_times)
@@ -211,14 +226,27 @@ class MIDITranscriber:
         return notes
     
     def freq_to_midi(self, frequency: float) -> float:
-        """Converte frequenza in MIDI note number"""
+        """Converte frequenza in MIDI note number usando formula logaritmica
+        
+        Formula: MIDI = 12 * log2(freq / 440) + 69
+        - 440 Hz = A4 = MIDI 69 (standard internazionale)
+        - Ogni ottava = 12 semitoni
+        - log2 per conversione lineare in scala logaritmica
+        """
         if frequency <= 0:
             return 0
         return 12 * np.log2(frequency / 440.0) + 69
     
     def estimate_velocity(self, frequency: float, time: float) -> int:
-        """Stima velocity basata su frequenza e timing"""
-        # Velocity base
+        """Stima velocity MIDI basata su frequenza e timing
+        
+        Algoritmo:
+        1. Velocity base = 80 (mezzo-forte)
+        2. Fattore frequenza: note alte = velocity maggiore (range 0.5-1.5)
+        3. Fattore timing: note in battere = velocity maggiore (futuro)
+        4. Clamp risultato tra 1-127 (range MIDI standard)
+        """
+        # Velocity base (mezzo-forte)
         base_velocity = 80
         
         # Modifica basata su frequenza (note alte = velocity maggiore)
@@ -228,10 +256,17 @@ class MIDITranscriber:
         beat_factor = 1.0  # Semplificato per ora
         
         velocity = int(base_velocity * freq_factor * beat_factor)
-        return max(1, min(127, velocity))
+        return max(1, min(127, velocity))  # Clamp MIDI range
     
     def quantize_notes(self, notes: List[Dict]) -> List[Dict]:
-        """Quantizza timing delle note"""
+        """Quantizza timing delle note per allineamento alla griglia
+        
+        Algoritmo:
+        1. Converte quantize_ms in secondi
+        2. Arrotonda start/end time al più vicino intervallo
+        3. Verifica durata minima dopo quantizzazione
+        4. Mantiene timing perfetto per DAW compatibility
+        """
         if self.quantize_ms <= 0:
             return notes
         
@@ -240,10 +275,10 @@ class MIDITranscriber:
         logger.info(f"🎯 Quantizzazione a {self.quantize_ms}ms...")
         
         for note in notes:
-            # Quantizza start time
+            # Quantizza start time al più vicino intervallo
             note['start'] = round(note['start'] / quantize_interval) * quantize_interval
             
-            # Quantizza end time
+            # Quantizza end time al più vicino intervallo
             note['end'] = round(note['end'] / quantize_interval) * quantize_interval
             
             # Verifica durata minima dopo quantizzazione

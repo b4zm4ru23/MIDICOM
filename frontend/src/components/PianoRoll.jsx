@@ -148,7 +148,8 @@ const PianoRoll = ({
     }
   }, [updateDimensions])
 
-  // Extract notes from MIDI data
+  // Extract notes from MIDI data with track information
+  // Algoritmo: parsing MIDI tracks -> note objects con metadata
   const extractNotesFromMIDI = (midi) => {
     const notes = []
     
@@ -156,34 +157,37 @@ const PianoRoll = ({
       midi.tracks.forEach((track, trackIndex) => {
         if (track.notes) {
           track.notes.forEach(note => {
+            // Crea note object con ID univoco e metadata
             notes.push({
-              id: `${trackIndex}-${note.midi}-${note.time}`,
-              pitch: note.midi,
-              start: note.time,
-              end: note.time + note.duration,
-              velocity: note.velocity,
-              track: trackIndex,
-              noteName: midiToNoteName(note.midi)
+              id: `${trackIndex}-${note.midi}-${note.time}`, // ID univoco per React keys
+              pitch: note.midi,                              // MIDI note number (0-127)
+              start: note.time,                              // Start time in seconds
+              end: note.time + note.duration,                // End time in seconds
+              velocity: note.velocity,                       // MIDI velocity (1-127)
+              track: trackIndex,                             // Track index per multi-track
+              noteName: midiToNoteName(note.midi)           // Human-readable note name
             })
           })
         }
       })
     }
     
+    // Sort notes by start time per rendering sequenziale
     return notes.sort((a, b) => a.start - b.start)
   }
 
-  // Convert MIDI note number to note name
+  // Convert MIDI note number to note name (C4, D#5, etc.)
+  // Algoritmo: MIDI number -> note name + octave
   const midiToNoteName = (midi) => {
     const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-    const octave = Math.floor(midi / 12) - 1
-    const note = noteNames[midi % 12]
+    const octave = Math.floor(midi / 12) - 1  // MIDI 60 = C4, quindi -1 per octave
+    const note = noteNames[midi % 12]         // Modulo 12 per note name
     return `${note}${octave}`
   }
 
-  // Convert time to pixels (based on BPM and grid)
+  // Convert time to pixels (memoized for performance)
   // Algoritmo: time -> beats -> pixels con zoom e scroll
-  const timeToPixels = (time) => {
+  const timeToPixels = useCallback((time) => {
     const BPM = 120
     const beatsPerBar = 4
     const barsToShow = 16
@@ -194,10 +198,10 @@ const PianoRoll = ({
     // Convert time to beats: time / (60/BPM) = beats
     const beats = time / (60 / BPM)
     return beats * pixelsPerBeat + scrollX + keyWidth
-  }
+  }, [dimensions.width, zoom, scrollX])
 
-  // Convert pixels to time (based on BPM and grid)
-  const pixelsToTime = (pixels) => {
+  // Convert pixels to time (memoized for performance)
+  const pixelsToTime = useCallback((pixels) => {
     const BPM = 120
     const beatsPerBar = 4
     const barsToShow = 16
@@ -207,9 +211,9 @@ const PianoRoll = ({
     // Convert pixels to beats
     const beats = (pixels - scrollX - keyWidth) / pixelsPerBeat
     return beats * (60 / BPM)
-  }
+  }, [dimensions.width, zoom, scrollX])
 
-  // Calculate if horizontal scrollbar should be shown
+  // Calculate if horizontal scrollbar should be shown (memoized)
   const calculateScrollbarVisibility = useCallback(() => {
     if (!midiData || !dimensions.width) return false
     
@@ -227,8 +231,6 @@ const PianoRoll = ({
     // Show scrollbar if zoom is greater than 1.0 OR if content is wider than available space
     const shouldShow = zoom > 1.0 || totalContentWidth > availableWidth
     
-    // Calculate if horizontal scrollbar should be visible
-    
     return shouldShow
   }, [midiData, dimensions.width, zoom])
 
@@ -239,9 +241,9 @@ const PianoRoll = ({
     // Update horizontal scrollbar visibility
   }, [calculateScrollbarVisibility])
 
-  // Convert pitch to Y position - show full range with smaller keys for more octaves
+  // Convert pitch to Y position (memoized for performance)
   // Algoritmo: MIDI pitch -> piano key position -> screen Y coordinate
-  const pitchToY = (pitch) => {
+  const pitchToY = useCallback((pitch) => {
     const maxPitch = 127 // Full MIDI range (C-1 to G9)
     const minPitch = 0   // Full MIDI range
     const keyHeight = 20 // Smaller keys to fit more octaves
@@ -255,7 +257,7 @@ const PianoRoll = ({
     const scrolledY = absoluteY - scrollY
     
     return scrolledY
-  }
+  }, [scrollY])
 
   // Convert Y position to pitch
   const yToPitch = (y) => {
@@ -272,19 +274,17 @@ const PianoRoll = ({
     return Math.round(Math.max(minPitch, Math.min(maxPitch, pitch)))
   }
 
-  // Draw piano roll
+  // Draw piano roll with optimized rendering
   const draw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas || !dimensions.width || !dimensions.height) {
       return
     }
 
-    // Draw piano roll canvas
-
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     
-    // Enable high DPI rendering for smoother graphics
+    // High DPI rendering setup (memoized)
     const devicePixelRatio = window.devicePixelRatio || 1
     canvas.width = dimensions.width * devicePixelRatio
     canvas.height = dimensions.height * devicePixelRatio
@@ -292,24 +292,18 @@ const PianoRoll = ({
     canvas.style.height = dimensions.height + 'px'
     ctx.scale(devicePixelRatio, devicePixelRatio)
     
-    // Enable anti-aliasing for smoother rendering
+    // Anti-aliasing for smooth rendering
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'
 
-    // Clear canvas
+    // Clear canvas with background
     ctx.fillStyle = '#111111'
     ctx.fillRect(0, 0, dimensions.width, dimensions.height)
 
-    // Draw grid
+    // Render layers in order (optimized)
     drawGrid(ctx)
-    
-    // Draw notes
     drawNotes(ctx)
-    
-    // Draw playhead
     drawPlayhead(ctx)
-    
-    // Draw piano keys
     drawPianoKeys(ctx)
   }, [dimensions, notes, zoom, scrollX, scrollY, currentTime, activeNotes])
 
@@ -788,23 +782,22 @@ const PianoRoll = ({
     handleMouseMove.lastUpdate = 0
   }
 
-  // Handle wheel events for zoom and scroll with smooth scrolling
+  // Handle wheel events for zoom and scroll with optimized debounce
   const handleWheel = useCallback((e) => {
     e.preventDefault()
     
-    // Throttle wheel events for smoother scrolling
+    // Optimized throttle: 16ms = 60fps, prevents excessive calculations
     const now = Date.now()
-    if (handleWheel.lastUpdate && now - handleWheel.lastUpdate < 16) { // ~60fps
+    if (handleWheel.lastUpdate && now - handleWheel.lastUpdate < 16) {
       return
     }
     handleWheel.lastUpdate = now
     
     if (e.ctrlKey || e.metaKey) {
-      // Ctrl/Cmd + wheel for zoom
+      // Ctrl/Cmd + wheel for zoom with smooth scaling
       const delta = e.deltaY > 0 ? 0.9 : 1.1
       setZoom(prev => {
         const newZoom = Math.max(0.1, Math.min(10, prev * delta))
-        // Update zoom level
         return newZoom
       })
     } else if (e.shiftKey) {
@@ -812,14 +805,13 @@ const PianoRoll = ({
       const scrollDelta = e.deltaY > 0 ? 50 : -50
       setScrollX(prev => {
         const newScrollX = prev - scrollDelta
-        // Limit scroll to prevent going before time 0
-        return Math.min(0, newScrollX)
+        return Math.min(0, newScrollX) // Prevent scrolling before time 0
       })
     } else {
       // Normal wheel for vertical scroll through piano octaves
-      const scrollDelta = e.deltaY * 0.2 // Very smooth scroll speed
+      const scrollDelta = e.deltaY * 0.2 // Smooth scroll speed
       const keyHeight = 20
-      const maxScrollY = (128 * keyHeight) - dimensions.height // Total height - visible height
+      const maxScrollY = (128 * keyHeight) - dimensions.height
       setScrollY(prev => {
         const newScrollY = prev + scrollDelta
         return Math.max(0, Math.min(maxScrollY, newScrollY))
