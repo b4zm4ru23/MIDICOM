@@ -16,7 +16,7 @@ export const useMIDI = (midiFile) => {
       setError(null)
 
       try {
-        console.log('Loading MIDI file:', midiFile)
+        // Loading MIDI file
         
         // Create different mock data based on the file name for testing
         const getMockMidiData = (fileName) => {
@@ -136,7 +136,7 @@ export const useMIDI = (midiFile) => {
         // Simulate loading delay
         await new Promise(resolve => setTimeout(resolve, 500))
         
-        console.log('MIDI data loaded:', mockMidiData)
+        // MIDI data loaded successfully
         setMidiData(mockMidiData)
       } catch (err) {
         setError(err.message)

@@ -32,7 +32,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
         synthRef.current.volume.value = -20
 
         setIsInitialized(true)
-        console.log('MIDI synthesizer initialized')
+        // MIDI synthesizer ready
       } catch (error) {
         console.error('Error initializing MIDI synthesizer:', error)
       }
@@ -50,11 +50,11 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
   // Play MIDI notes
   const playMIDINotes = useCallback((notes, startTime = 0) => {
     if (!synthRef.current || !isInitialized) {
-      console.log('MIDI Player not ready:', { synth: !!synthRef.current, initialized: isInitialized })
+      // MIDI Player not ready for playback
       return
     }
 
-    console.log('Playing MIDI notes:', notes.length, 'notes, start time:', startTime)
+    // Schedule MIDI notes for playback
 
     // Clear previously scheduled notes
     scheduledNotesRef.current.forEach(note => {
@@ -64,7 +64,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
 
     // Filter notes that should be played from the start time
     const notesToPlay = notes.filter(note => note.time >= startTime)
-    console.log('Filtered notes to play:', notesToPlay.length, 'from start time:', startTime)
+    // Filter notes to play from start time
 
     // Schedule notes
     notesToPlay.forEach((note, index) => {
@@ -74,7 +74,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
       // Schedule note on
       const noteOnId = Tone.Transport.schedule((time) => {
         const frequency = Tone.Frequency(note.midi, 'midi').toFrequency()
-        console.log(`Playing note ${index}: MIDI ${note.midi}, freq ${frequency.toFixed(2)}Hz, time ${noteTime}`)
+        // Schedule note for playback
         
         synthRef.current.triggerAttackRelease(frequency, noteDuration, time)
       }, noteTime)
@@ -103,34 +103,27 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
       const active = calculateActiveNotes(currentTime)
       setActiveNotes(active)
       
-      // Debug: Log active notes
-      if (active.length > 0) {
-        console.log('Active notes at time', currentTime.toFixed(2) + 's:', active)
-      }
+      // Update active notes for visual feedback
     }
   }, [currentTime, midiData, isInitialized, calculateActiveNotes])
 
   // Handle playback start/stop
   useEffect(() => {
-    console.log('MIDI Player playback effect:', { 
-      midiData: !!midiData, 
-      isInitialized, 
-      isPlaying
-    })
+    // Handle playback state changes
 
     if (!midiData || !isInitialized) {
-      console.log('MIDI Player not ready for playback')
+      // MIDI Player not ready
       return
     }
 
     if (isPlaying) {
       // Start playing from current time
       const allNotes = midiData.tracks.flatMap(track => track.notes)
-      console.log('Starting playback with', allNotes.length, 'notes')
+      // Start MIDI playback
       playMIDINotes(allNotes, currentTime)
     } else {
       // Stop all scheduled notes
-      console.log('Stopping playback')
+      // Stop MIDI playback
       scheduledNotesRef.current.forEach(note => {
         Tone.Transport.clear(note)
       })
@@ -141,7 +134,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
 
   // Handle seek (only when manually triggered, not during playback)
   const handleSeek = useCallback((newTime) => {
-    console.log('MIDI Player: Seeking to:', newTime)
+    // Seek MIDI playback to new time
     
     if (midiData && isInitialized) {
       // Update Tone.Transport position

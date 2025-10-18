@@ -28,7 +28,7 @@ export const useAudioPlayer = (stems) => {
           playersRef.current[name] = new Tone.Player({
             url: path,
             onload: () => {
-              console.log(`Loaded stem: ${name}`)
+              // Stem loaded successfully
               if (name === 'drums') {
                 setDuration(playersRef.current[name].buffer.duration)
               }

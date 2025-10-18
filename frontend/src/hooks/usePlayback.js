@@ -22,14 +22,14 @@ export const usePlayback = (midiData) => {
       } catch (error) {
         console.error('Error resetting Tone.Transport:', error)
       }
-      console.log('usePlayback: MIDI changed, resetting playhead to 0')
+      // Reset playhead for new MIDI
     } else {
       // Reset everything when MIDI is cleared
       setDuration(0)
       setCurrentTime(0)
       pausedTimeRef.current = 0
       setIsPlaying(false)
-      console.log('usePlayback: MIDI cleared, resetting everything')
+      // Clear playback state
     }
   }, [midiData])
 
@@ -44,14 +44,7 @@ export const usePlayback = (midiData) => {
       // Always update currentTime for smoother playhead movement
       setCurrentTime(newTime)
       
-      // Debug: Log time updates occasionally
-      if (Math.floor(newTime * 10) % 10 === 0) {
-        console.log('usePlayback: Time update:', { 
-          newTime: newTime.toFixed(2), 
-          elapsed: elapsed.toFixed(2), 
-          pausedTime: pausedTimeRef.current.toFixed(2) 
-        })
-      }
+      // Update current time for playhead
       
       if (newTime < duration) {
         // Use requestAnimationFrame for 60fps smooth updates
@@ -97,7 +90,7 @@ export const usePlayback = (midiData) => {
       pausedTimeRef.current = currentTime
       
       setIsPlaying(true)
-      console.log('usePlayback: Starting playback at time:', currentTime)
+      // Start playback from current time
     } catch (error) {
       console.error('Error starting playback:', error)
     }
@@ -106,7 +99,7 @@ export const usePlayback = (midiData) => {
   const pause = useCallback(() => {
     setIsPlaying(false)
     pausedTimeRef.current = currentTime
-    console.log('usePlayback: Paused at time:', currentTime)
+    // Pause playback
   }, [currentTime])
 
   const stop = useCallback(() => {
@@ -116,7 +109,7 @@ export const usePlayback = (midiData) => {
   }, [])
 
   const seek = useCallback((time) => {
-    console.log('usePlayback: Seeking to time:', time)
+    // Seek to specified time
     setCurrentTime(time)
     pausedTimeRef.current = time
     // Also update Tone.Transport position
