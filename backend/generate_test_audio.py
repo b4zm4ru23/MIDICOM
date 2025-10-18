@@ -132,8 +132,3 @@ Esempi di utilizzo:
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
