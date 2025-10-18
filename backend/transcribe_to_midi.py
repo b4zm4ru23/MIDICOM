@@ -68,10 +68,17 @@ class MIDITranscriber:
         return y, sr
     
     def detect_onsets(self, y: np.ndarray, sr: int) -> np.ndarray:
-        """Rileva onset delle note"""
+        """Rileva onset delle note usando spectral flux analysis
+        
+        Algoritmo:
+        1. Calcola spectral flux (differenza energia tra frame consecutivi)
+        2. Applica threshold per filtrare rumore
+        3. Rileva picchi significativi come onset
+        4. Converte frame indices in timestamp
+        """
         logger.info("🔍 Rilevamento onset...")
         
-        # Onset detection con multiple features
+        # Onset detection con multiple features (spectral flux, energy, etc.)
         onset_frames = librosa.onset.onset_detect(
             y=y,
             sr=sr,
@@ -80,14 +87,23 @@ class MIDITranscriber:
             units='frames'
         )
         
-        # Converti in secondi
+        # Converti frame indices in secondi usando hop_length
         onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=self.hop_length)
         
         logger.info(f"✅ Trovati {len(onset_times)} onset")
         return onset_times
     
     def detect_pitch_crepe(self, y: np.ndarray, sr: int) -> Tuple[np.ndarray, np.ndarray]:
-        """Pitch detection con CREPE (se disponibile)"""
+        """Pitch detection con CREPE (Convolutional Representation for Pitch Estimation)
+        
+        Algoritmo:
+        1. Resample audio a 16kHz (requisito CREPE)
+        2. Applica CNN pre-trained per pitch estimation
+        3. Usa Viterbi algorithm per smoothing temporale
+        4. Filtra risultati per confidence > 0.3
+        
+        CREPE è più accurato di librosa per pitch detection complessi
+        """
         if not self.use_crepe:
             return self.detect_pitch_librosa(y, sr)
         
@@ -95,15 +111,15 @@ class MIDITranscriber:
         
         import crepe
         
-        # CREPE richiede audio a 16kHz
+        # CREPE richiede audio a 16kHz per compatibilità con modello pre-trained
         y_16k = librosa.resample(y, orig_sr=sr, target_sr=16000)
         
-        # Pitch detection
+        # Pitch detection con CNN + Viterbi smoothing
         time, frequency, confidence, activation = crepe.predict(
             y_16k, 16000, model_capacity='full', viterbi=True
         )
         
-        # Filtra per confidence
+        # Filtra per confidence threshold (0.3 = 30% confidence)
         valid_mask = confidence > 0.3
         time = time[valid_mask]
         frequency = frequency[valid_mask]
@@ -144,13 +160,21 @@ class MIDITranscriber:
     
     def group_notes(self, onset_times: np.ndarray, pitch_times: np.ndarray, 
                    frequencies: np.ndarray) -> List[Dict]:
-        """Raggruppa onset e pitch in note complete"""
+        """Raggruppa onset e pitch in note complete usando temporal matching
+        
+        Algoritmo:
+        1. Per ogni onset, trova il pitch più vicino temporalmente
+        2. Verifica che pitch sia entro 0.2s dall'onset
+        3. Stima durata nota fino al prossimo onset
+        4. Calcola velocity basata su frequenza e intensità
+        5. Filtra note con durata minima
+        """
         logger.info("🎼 Raggruppamento note...")
         
         notes = []
         
         for onset_time in onset_times:
-            # Trova pitch più vicino all'onset
+            # Trova pitch più vicino temporalmente all'onset
             time_diff = np.abs(pitch_times - onset_time)
             closest_idx = np.argmin(time_diff)
             
@@ -158,20 +182,20 @@ class MIDITranscriber:
             if time_diff[closest_idx] < 0.2:
                 frequency = frequencies[closest_idx]
                 
-                # Converti frequenza in MIDI note
+                # Converti frequenza in MIDI note number (A4 = 440Hz = MIDI 69)
                 midi_note = self.freq_to_midi(frequency)
                 
                 # Stima durata nota (fino al prossimo onset o fine)
                 next_onset_idx = np.searchsorted(onset_times, onset_time + 0.1)
                 if next_onset_idx < len(onset_times):
-                    end_time = onset_times[next_onset_idx] - 0.05  # Piccolo gap
+                    end_time = onset_times[next_onset_idx] - 0.05  # Piccolo gap tra note
                 else:
-                    end_time = onset_time + 1.0  # Durata default
+                    end_time = onset_time + 1.0  # Durata default per ultima nota
                 
-                # Verifica durata minima
+                # Verifica durata minima per evitare note troppo brevi
                 duration = end_time - onset_time
                 if duration >= self.min_note_duration:
-                    # Stima velocity basata su intensità
+                    # Stima velocity basata su frequenza e intensità
                     velocity = self.estimate_velocity(frequency, onset_time)
                     
                     note = {

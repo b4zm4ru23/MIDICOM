@@ -182,6 +182,7 @@ const PianoRoll = ({
   }
 
   // Convert time to pixels (based on BPM and grid)
+  // Algoritmo: time -> beats -> pixels con zoom e scroll
   const timeToPixels = (time) => {
     const BPM = 120
     const beatsPerBar = 4
@@ -190,7 +191,7 @@ const PianoRoll = ({
     const barDuration = (60 / BPM) * beatsPerBar
     const pixelsPerBeat = ((dimensions.width - keyWidth) * zoom) / (barsToShow * beatsPerBar)
     
-    // Convert time to beats
+    // Convert time to beats: time / (60/BPM) = beats
     const beats = time / (60 / BPM)
     return beats * pixelsPerBeat + scrollX + keyWidth
   }
@@ -239,19 +240,19 @@ const PianoRoll = ({
   }, [calculateScrollbarVisibility])
 
   // Convert pitch to Y position - show full range with smaller keys for more octaves
+  // Algoritmo: MIDI pitch -> piano key position -> screen Y coordinate
   const pitchToY = (pitch) => {
-    const maxPitch = 127 // Full MIDI range
+    const maxPitch = 127 // Full MIDI range (C-1 to G9)
     const minPitch = 0   // Full MIDI range
     const keyHeight = 20 // Smaller keys to fit more octaves
     const containerHeight = dimensions.height
     
     // Calculate absolute Y position (without scroll)
+    // Invert pitch: higher pitch = lower Y (piano convention)
     const absoluteY = (127 - pitch) * keyHeight
     
-    // Apply scroll offset
+    // Apply scroll offset for viewport navigation
     const scrolledY = absoluteY - scrollY
-    
-    // Convert pitch to Y position with scroll offset
     
     return scrolledY
   }
@@ -313,18 +314,19 @@ const PianoRoll = ({
   }, [dimensions, notes, zoom, scrollX, scrollY, currentTime, activeNotes])
 
   // Draw professional grid like FL Studio
+  // Algoritmo: time grid con barre, beat, e sedicesimi
   const drawGrid = (ctx) => {
     const containerWidth = dimensions.width
     const containerHeight = dimensions.height
 
-    // Grid settings
+    // Grid settings per 4/4 time signature
     const BPM = 120 // Beats per minute
     const beatsPerBar = 4 // 4/4 time signature
     const barsToShow = 16 // Show 16 bars
     const barDuration = (60 / BPM) * beatsPerBar // Duration of one bar in seconds
     const totalDuration = barsToShow * barDuration
 
-    // Calculate pixels per beat
+    // Calculate pixels per beat con zoom
     const pixelsPerBeat = (containerWidth * zoom) / (barsToShow * beatsPerBar)
     const pixelsPerBar = pixelsPerBeat * beatsPerBar
 

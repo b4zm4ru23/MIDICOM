@@ -50,7 +50,7 @@ def test_separation_and_transcription():
     # 2. Separazione audio
     print("\n📝 Separazione audio in stem...")
     if not run_command([
-        "python", "separate.py", test_audio, output_dir
+        "python", "../backend/separate.py", test_audio, output_dir
     ], "Separazione audio"):
         return False
     
@@ -82,7 +82,7 @@ def test_separation_and_transcription():
         if "drums" in stem:
             # Batteria: soglia più alta, quantizzazione maggiore
             cmd = [
-                "python", "transcribe_to_midi.py", stem_path, midi_path,
+                "python", "../backend/transcribe_to_midi.py", stem_path, midi_path,
                 "--threshold-onset", "0.5",
                 "--quantize", "100",
                 "--min-duration", "0.05"
@@ -90,7 +90,7 @@ def test_separation_and_transcription():
         elif "bass" in stem:
             # Basso: soglia media, durata minima maggiore
             cmd = [
-                "python", "transcribe_to_midi.py", stem_path, midi_path,
+                "python", "../backend/transcribe_to_midi.py", stem_path, midi_path,
                 "--threshold-onset", "0.4",
                 "--quantize", "50",
                 "--min-duration", "0.2"
@@ -98,7 +98,7 @@ def test_separation_and_transcription():
         else:
             # Melodia e altri: parametri standard
             cmd = [
-                "python", "transcribe_to_midi.py", stem_path, midi_path,
+                "python", "../backend/transcribe_to_midi.py", stem_path, midi_path,
                 "--threshold-onset", "0.3",
                 "--quantize", "50",
                 "--min-duration", "0.1"
@@ -151,7 +151,7 @@ def test_separation_and_transcription():
         
         print("\n🎯 Test soglia alta (0.8)...")
         if run_command([
-            "python", "transcribe_to_midi.py", melody_path, test_midi,
+            "python", "../backend/transcribe_to_midi.py", melody_path, test_midi,
             "--threshold-onset", "0.8",
             "--verbose"
         ], "Test soglia alta"):
@@ -169,9 +169,9 @@ def main():
     print("="*50)
     
     # Verifica che siamo nella directory corretta
-    if not os.path.exists("separate.py") or not os.path.exists("transcribe_to_midi.py"):
-        print("❌ Errore: Esegui questo script dalla directory backend/")
-        print("   cd backend")
+    if not os.path.exists("../backend/separate.py") or not os.path.exists("../backend/transcribe_to_midi.py"):
+        print("❌ Errore: Esegui questo script dalla directory scripts/test/")
+        print("   cd scripts/test")
         print("   python test_transcription.py")
         sys.exit(1)
     

@@ -90,7 +90,19 @@ class AudioSeparator:
             return 0.0
     
     def separate_audio(self, input_path: str, output_dir: str) -> Dict:
-        """Separa audio in stem usando Demucs"""
+        """Separa audio in stem usando Demucs (Deep Music Source Separation)
+        
+        Algoritmo Demucs:
+        1. Usa CNN encoder-decoder per separare frequenze
+        2. Applica U-Net architecture per preservare dettagli
+        3. Usa shift augmentation per migliorare robustezza
+        4. Separa in 4 stem: drums, bass, other, vocals
+        
+        Parametri:
+        - shifts: numero di shift temporali per ensemble
+        - overlap: overlap tra shift per smoothness
+        - split: split automatico per file lunghi
+        """
         try:
             from demucs.api import separate_track
             
@@ -108,18 +120,18 @@ class AudioSeparator:
             
             start_time = time.time()
             
-            # Separazione con Demucs
+            # Separazione con Demucs usando CNN encoder-decoder
             stems = separate_track(
                 input_path,
                 model=self.model_name,
                 device='cpu',  # Cambia in 'cuda' se hai GPU
-                shifts=1,      # Numero di shift per migliorare qualità
-                overlap=0.25,  # Overlap tra shift
+                shifts=1,      # Numero di shift per ensemble (migliora qualità)
+                overlap=0.25,  # Overlap tra shift per smoothness
                 split=True,    # Split automatico per file lunghi
                 jobs=1         # Numero di job paralleli
             )
             
-            # Salva stem
+            # Salva stem separati
             stem_paths = {}
             for name, stem in stems.items():
                 output_path = os.path.join(output_dir, f"{name}.wav")
