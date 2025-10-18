@@ -47,15 +47,12 @@ const PianoRoll = ({
   // MIDI player for synthesized sounds
   const { isInitialized: midiInitialized, activeNotes, handleSeek } = useMIDIPlayer(midiData, isPlaying, currentTime)
 
-  // Debug: Log MIDI player status
+  // Debug: Log MIDI player status (only in development)
   useEffect(() => {
-    console.log('PianoRoll Debug:')
-    console.log('- MIDI Player initialized:', midiInitialized)
-    console.log('- MIDI Data available:', !!midiData)
-    console.log('- MIDI Data:', midiData)
-    console.log('- Is Playing:', isPlaying)
-    console.log('- Notes count:', notes.length)
-  }, [midiInitialized, midiData, isPlaying, notes.length])
+    if (process.env.NODE_ENV === 'development') {
+      console.log('PianoRoll: MIDI Player initialized:', midiInitialized, 'Notes:', notes.length)
+    }
+  }, [midiInitialized, notes.length])
 
   // Update notes when MIDI data changes
   useEffect(() => {
@@ -73,11 +70,7 @@ const PianoRoll = ({
         const maxPitch = Math.max(...extractedNotes.map(n => n.pitch))
         const centerPitch = (minPitch + maxPitch) / 2
         
-        console.log('PianoRoll: Auto-centering calculation:', {
-          minPitch, maxPitch, centerPitch,
-          noteNames: extractedNotes.map(n => n.noteName).slice(0, 5),
-          totalNotes: extractedNotes.length
-        })
+        // Auto-center calculation for new MIDI data
         
         // Calculate scroll to center the notes more precisely
         const keyHeight = 20
@@ -98,10 +91,7 @@ const PianoRoll = ({
         const maxScrollY = Math.max(0, (128 * keyHeight) - containerHeight)
         const finalScrollY = Math.max(0, Math.min(maxScrollY, adjustedScrollY))
         
-        console.log('PianoRoll: Scroll calculation:', {
-          centerPitchY, viewportCenter, targetScrollY, adjustedScrollY, finalScrollY,
-          maxScrollY, containerHeight
-        })
+        // Calculate optimal scroll position to center notes
         
         setScrollY(finalScrollY)
         
@@ -115,7 +105,7 @@ const PianoRoll = ({
         
       } else {
         setScrollY(0)
-        console.log('PianoRoll: MIDI changed, resetting scroll position')
+        // Reset scroll position for new MIDI
       }
       
       // Re-enable drawing after MIDI change is complete
@@ -132,16 +122,19 @@ const PianoRoll = ({
     }
   }, [isPlaying, playStems, stopStems])
 
-  // Update canvas dimensions with debounce to avoid tremolio
-  useEffect(() => {
-    let timeoutId
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
+  // Unified dimension update function
+  const updateDimensions = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
         setDimensions({ width: rect.width, height: rect.height })
       }
     }
+  }, [])
 
+  // Update canvas dimensions with debounce to avoid tremolio
+  useEffect(() => {
+    let timeoutId
     const debouncedUpdate = () => {
       clearTimeout(timeoutId)
       timeoutId = setTimeout(updateDimensions, 100) // Debounce 100ms
@@ -153,7 +146,7 @@ const PianoRoll = ({
       window.removeEventListener('resize', debouncedUpdate)
       clearTimeout(timeoutId)
     }
-  }, [])
+  }, [updateDimensions])
 
   // Extract notes from MIDI data
   const extractNotesFromMIDI = (midi) => {
@@ -233,15 +226,7 @@ const PianoRoll = ({
     // Show scrollbar if zoom is greater than 1.0 OR if content is wider than available space
     const shouldShow = zoom > 1.0 || totalContentWidth > availableWidth
     
-    console.log('Scrollbar calculation:', {
-      availableWidth,
-      zoom,
-      basePixelsPerBeat,
-      zoomedPixelsPerBeat,
-      totalContentWidth,
-      shouldShow,
-      reason: zoom > 1.0 ? 'zoom > 1.0' : 'content wider than available'
-    })
+    // Calculate if horizontal scrollbar should be visible
     
     return shouldShow
   }, [midiData, dimensions.width, zoom])
@@ -250,8 +235,7 @@ const PianoRoll = ({
   useEffect(() => {
     const shouldShow = calculateScrollbarVisibility()
     setShowHorizontalScrollbar(shouldShow)
-    console.log('Horizontal scrollbar visibility updated:', shouldShow)
-    console.log('Current state - showHorizontalScrollbar:', shouldShow)
+    // Update horizontal scrollbar visibility
   }, [calculateScrollbarVisibility])
 
   // Convert pitch to Y position - show full range with smaller keys for more octaves
@@ -267,12 +251,7 @@ const PianoRoll = ({
     // Apply scroll offset
     const scrolledY = absoluteY - scrollY
     
-    // Debug only for first few notes to avoid console spam
-    if (pitch <= 45) {
-      console.log('PianoRoll: pitchToY calculation:', {
-        pitch, absoluteY, scrollY, scrolledY, containerHeight
-      })
-    }
+    // Convert pitch to Y position with scroll offset
     
     return scrolledY
   }
@@ -295,23 +274,14 @@ const PianoRoll = ({
   // Draw piano roll
   const draw = useCallback(() => {
     const canvas = canvasRef.current
-    if (!canvas) {
-      console.log('PianoRoll: Canvas ref not available')
-      return
-    }
-    
-    if (!dimensions.width || !dimensions.height) {
-      console.log('PianoRoll: Dimensions not ready', { dimensions })
+    if (!canvas || !dimensions.width || !dimensions.height) {
       return
     }
 
-    // console.log('PianoRoll: Drawing', { width: dimensions.width, height: dimensions.height, notes: notes.length, currentTime })
+    // Draw piano roll canvas
 
     const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      console.log('PianoRoll: Could not get canvas context')
-      return
-    }
+    if (!ctx) return
     
     // Enable high DPI rendering for smoother graphics
     const devicePixelRatio = window.devicePixelRatio || 1
@@ -358,10 +328,7 @@ const PianoRoll = ({
     const pixelsPerBeat = (containerWidth * zoom) / (barsToShow * beatsPerBar)
     const pixelsPerBar = pixelsPerBeat * beatsPerBar
 
-    console.log('PianoRoll: Drawing professional grid:', { 
-      BPM, barsToShow, barDuration, totalDuration, 
-      pixelsPerBeat, pixelsPerBar, containerWidth 
-    })
+    // Draw professional grid with time markers
 
     // Draw horizontal lines (one for each piano key) - start after piano keys
     const keyWidth = 400 // Same as in drawPianoKeys
@@ -483,7 +450,7 @@ const PianoRoll = ({
       }
     }
 
-    console.log('PianoRoll: Professional grid drawn')
+    // Grid drawing completed
   }
 
   // Draw notes - larger and more visible
@@ -492,10 +459,7 @@ const PianoRoll = ({
     const containerHeight = dimensions.height
     const keyWidth = 400
     
-    // Debug: log all notes to see what we have
-    if (notes.length > 0) {
-      console.log('PianoRoll: Drawing notes:', notes.map(n => ({ pitch: n.pitch, noteName: n.noteName, start: n.start, end: n.end })))
-    }
+    // Draw MIDI notes on canvas
     
     notes.forEach(note => {
       // Show all notes in the full MIDI range
@@ -512,24 +476,10 @@ const PianoRoll = ({
       // Calculate Y position to fill the space between two consecutive key lines
       const noteY = y - keyHeight/2 // Start from the top of the key space (keyTop)
 
-      // Debug: Log note position calculation only for first few notes
-      if (note.pitch <= 45) {
-        console.log('PianoRoll: Note position calculation:', {
-          pitch: note.pitch,
-          noteName: note.noteName,
-          x, y, width, height, noteY,
-          keyWidth, containerWidth, containerHeight,
-          scrollY: scrollY,
-          isVisible: x + width > keyWidth && x < containerWidth && y > 0 && y < containerHeight
-        })
-      }
+      // Calculate note position and visibility
 
       // Check if note is visible in the current viewport
       if (x + width > keyWidth && x < containerWidth && y > 0 && y < containerHeight) {
-        // Debug only for first few notes
-        if (note.pitch <= 45) {
-          console.log('PianoRoll: Drawing note:', { pitch: note.pitch, noteName: note.noteName, x, y, width, height, keyWidth, containerWidth })
-        }
         // Note color based on velocity with better contrast
         const intensity = note.velocity / 127
         const hue = (note.pitch * 2.8) % 360
@@ -539,10 +489,7 @@ const PianoRoll = ({
         // Main note body - fill the entire key space
         ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`
         ctx.fillRect(x, noteY, width, height)
-        // Debug only for first few notes
-        if (note.pitch <= 45) {
-          console.log('PianoRoll: Drew note rect:', { x, noteY, width, height, color: `hsl(${hue}, ${saturation}%, ${lightness}%)` })
-        }
+        // Draw note rectangle with color based on pitch and velocity
 
         // Note border with better visibility
         ctx.strokeStyle = `hsl(${hue}, ${saturation}%, ${lightness + 20}%)`
@@ -569,19 +516,6 @@ const PianoRoll = ({
           ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness + 30}%)`
           ctx.fillRect(x + width - velocityBarWidth, noteY + (height - velocityBarHeight)/2, velocityBarWidth, velocityBarHeight)
         }
-      } else {
-        console.log('PianoRoll: Note NOT visible:', { 
-          pitch: note.pitch, 
-          noteName: note.noteName, 
-          x, y, width, height, 
-          keyWidth, containerWidth, containerHeight,
-          reason: {
-            xTooLeft: x + width <= keyWidth,
-            xTooRight: x >= containerWidth,
-            yTooTop: y <= 0,
-            yTooBottom: y >= containerHeight
-          }
-        })
       }
     })
   }
@@ -638,10 +572,7 @@ const PianoRoll = ({
       ctx.fillText(timeLabel, x, handleSize + 5)
     }
     
-    // Debug only occasionally to avoid console spam
-    if (Math.floor(currentTime * 10) % 10 === 0) {
-      console.log('PianoRoll: Playhead drawn at x:', x, 'time:', currentTime)
-    }
+    // Draw playhead at current time position
   }
 
   // Draw professional piano keys like FL Studio
@@ -769,7 +700,7 @@ const PianoRoll = ({
     if (showHorizontalScrollbar && y >= dimensions.height - 10 && x >= keyWidth) {
       setIsDraggingHorizontalScrollbar(true)
       setDragStart({ x: e.clientX, y: e.clientY })
-      console.log('PianoRoll: Started dragging horizontal scrollbar')
+      // Start horizontal scrollbar drag
       return
     }
     
@@ -781,7 +712,7 @@ const PianoRoll = ({
     if (isOnPlayhead) {
       // Start dragging playhead
       setIsDraggingPlayhead(true)
-      console.log('PianoRoll: Started dragging playhead')
+      // Start playhead drag
     } else {
       // Start dragging canvas
       setIsDragging(true)
@@ -822,7 +753,7 @@ const PianoRoll = ({
       
       // Throttle updates to improve performance
       if (Date.now() - (handleMouseMove.lastUpdate || 0) > 16) { // ~60fps
-        console.log('PianoRoll: Dragging playhead to time:', clampedTime)
+        // Update playhead position during drag
         
         // Update current time through onSeek callback
         if (onSeek) {
@@ -871,7 +802,7 @@ const PianoRoll = ({
       const delta = e.deltaY > 0 ? 0.9 : 1.1
       setZoom(prev => {
         const newZoom = Math.max(0.1, Math.min(10, prev * delta))
-        console.log('Zoom changed:', { prev, newZoom, delta })
+        // Update zoom level
         return newZoom
       })
     } else if (e.shiftKey) {
@@ -912,46 +843,28 @@ const PianoRoll = ({
   }, [handleWheel])
 
 
-  // Initialize canvas dimensions
+  // Initialize canvas dimensions with multiple attempts
   useEffect(() => {
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
-        console.log('PianoRoll: Container rect:', rect)
-        const newDimensions = { width: rect.width || 800, height: rect.height || 400 }
-        setDimensions(newDimensions)
-        console.log('PianoRoll: Dimensions updated:', newDimensions)
-      }
-    }
-
     // Multiple attempts to ensure dimensions are captured
-    setTimeout(updateDimensions, 100)
-    setTimeout(updateDimensions, 300)
-    setTimeout(updateDimensions, 500)
-    setTimeout(updateDimensions, 1000) // Extra delay for page reloads
+    const timeouts = [100, 300, 500, 1000].map(delay => 
+      setTimeout(updateDimensions, delay)
+    )
     
     window.addEventListener('resize', updateDimensions)
-    return () => window.removeEventListener('resize', updateDimensions)
-  }, [])
+    return () => {
+      timeouts.forEach(clearTimeout)
+      window.removeEventListener('resize', updateDimensions)
+    }
+  }, [updateDimensions])
 
-  // Also update dimensions when midiData changes (new track loaded)
+  // Update dimensions when MIDI data changes
   useEffect(() => {
     if (midiData) {
-      const updateDimensions = () => {
-        if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect()
-          console.log('PianoRoll: Updating dimensions for new MIDI data:', rect)
-          const newDimensions = { width: rect.width || 800, height: rect.height || 400 }
-          setDimensions(newDimensions)
-          console.log('PianoRoll: Dimensions updated for MIDI:', newDimensions)
-        }
-      }
-      
       // Update dimensions when new MIDI data is loaded
       setTimeout(updateDimensions, 100)
       setTimeout(updateDimensions, 300)
     }
-  }, [midiData])
+  }, [midiData, updateDimensions])
 
   // Update canvas dimensions when zoom changes
   useEffect(() => {
@@ -961,7 +874,7 @@ const PianoRoll = ({
         const canvas = canvasRef.current
         canvas.width = rect.width * zoom
         canvas.height = rect.height
-        console.log('PianoRoll: Canvas resized for zoom:', { width: canvas.width, height: canvas.height, zoom })
+        // Canvas resized for zoom level
       }
     }
 
@@ -983,11 +896,11 @@ const PianoRoll = ({
   useEffect(() => {
     // Skip drawing during MIDI changes to prevent tremolio
     if (isChangingMIDI) {
-      console.log('PianoRoll: Skipping draw during MIDI change')
+      // Skip drawing during MIDI change to prevent flicker
       return
     }
     
-    console.log('PianoRoll: Triggering draw, dimensions:', dimensions)
+    // Trigger canvas redraw
     // Add a longer delay to avoid tremolio during rapid state changes
     const timeoutId = setTimeout(() => {
       draw()
@@ -996,31 +909,20 @@ const PianoRoll = ({
     return () => clearTimeout(timeoutId)
   }, [draw, isChangingMIDI])
 
-  // Force dimension update when component mounts or dimensions are too small
+  // Force dimension update when dimensions are too small
   useEffect(() => {
     if (dimensions.width < 500 || dimensions.height < 200) {
-      console.log('PianoRoll: Dimensions too small, forcing update:', dimensions)
-      const updateDimensions = () => {
-        if (containerRef.current) {
-          const rect = containerRef.current.getBoundingClientRect()
-          if (rect.width > 0 && rect.height > 0) {
-            const newDimensions = { width: rect.width, height: rect.height }
-            setDimensions(newDimensions)
-            console.log('PianoRoll: Forced dimensions update:', newDimensions)
-          }
-        }
-      }
-      
+      // Force dimension update for small containers
       setTimeout(updateDimensions, 200)
       setTimeout(updateDimensions, 500)
     }
-  }, [dimensions])
+  }, [dimensions, updateDimensions])
 
   // Redraw when currentTime changes (for playhead movement) - optimized for smoothness
   useEffect(() => {
     if (isPlaying) {
       // Direct redraw for smooth playhead movement during playback
-      console.log('PianoRoll: currentTime changed, redrawing playhead', { currentTime, isPlaying })
+      // Redraw playhead for time changes
       draw()
     } else if (isDraggingPlayhead) {
       // Only redraw playhead during dragging, not the entire canvas
@@ -1158,24 +1060,24 @@ const PianoRoll = ({
           className="w-full h-2 bg-gray-700 rounded cursor-pointer relative"
           onClick={(e) => {
             if (!duration) {
-              console.log('Timeline click: No duration available')
+              // No duration available for timeline click
               return
             }
             const rect = e.currentTarget.getBoundingClientRect()
             const clickX = e.clientX - rect.left
             const clickTime = (clickX / rect.width) * duration
-            console.log('Timeline click:', { clickX, rectWidth: rect.width, duration, clickTime })
+            // Handle timeline click for seeking
             
             // Call onSeek from parent
             if (onSeek) {
               onSeek(clickTime)
             } else {
-              console.log('Timeline click: onSeek not available')
+              // onSeek callback not available
             }
             
             // Also handle MIDI seek if playing
             if (isPlaying && handleSeek) {
-              console.log('Timeline click: Calling handleSeek for MIDI')
+              // Handle MIDI seek during playback
               handleSeek(clickTime)
             }
           }}
