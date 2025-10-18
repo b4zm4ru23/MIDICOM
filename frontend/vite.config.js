@@ -17,7 +17,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    strictPort: true
+    strictPort: true,
+    host: '0.0.0.0', // Permette accesso da qualsiasi IP
+    hmr: {
+      port: 5173
+    }
   },
   resolve: {
     alias: {
