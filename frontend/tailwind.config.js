@@ -58,8 +58,3 @@ export default {
   },
   plugins: [],
 }
-
-
-
-
-
