@@ -12,14 +12,12 @@ import librosa
 import pretty_midi
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional
-import logging
+
+# Import logger centralizzato
+from backend.logger import setup_logger
 
 # Configurazione logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class MIDITranscriber:
     """Classe per trascrizione audio -> MIDI"""

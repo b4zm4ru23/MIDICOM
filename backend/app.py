@@ -17,14 +17,15 @@ import os
 import json
 import asyncio
 from typing import Optional
-import logging
 from datetime import datetime
 from pathlib import Path
 import mido
 
+# Import logger centralizzato
+from backend.logger import setup_logger
+
 # Configurazione logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 # Inizializzazione app FastAPI
 app = FastAPI(

@@ -13,14 +13,12 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional
 import time
-import logging
+
+# Import logger centralizzato
+from backend.logger import setup_logger
 
 # Configurazione logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class AudioSeparator:
     """Classe per separazione audio con Demucs"""
