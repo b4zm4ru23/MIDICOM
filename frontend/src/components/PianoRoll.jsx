@@ -3,6 +3,7 @@ import * as Tone from 'tone'
 import { useMIDI } from '../hooks/useMIDI'
 import { useAudioPlayer } from '../hooks/useAudioPlayer'
 import { useMIDIPlayer } from '../hooks/useMIDIPlayer'
+import { devLog } from '../utils/logger'
 
 // Utility function to format time
 const formatTime = (seconds) => {
@@ -49,13 +50,11 @@ const PianoRoll = ({
 
   // Debug: Log MIDI player status (only in development)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('PianoRoll: MIDI Player initialized:', midiInitialized, 'Notes:', notes.length)
-      console.log('PianoRoll: Fixed dimensions:', dimensions)
-      if (containerRef.current) {
-        const actualSize = containerRef.current.getBoundingClientRect()
-        console.log('PianoRoll: Container actual size:', { width: actualSize.width, height: actualSize.height })
-      }
+    devLog('PianoRoll: MIDI Player initialized:', midiInitialized, 'Notes:', notes.length)
+    devLog('PianoRoll: Fixed dimensions:', dimensions)
+    if (containerRef.current) {
+      const actualSize = containerRef.current.getBoundingClientRect()
+      devLog('PianoRoll: Container actual size:', { width: actualSize.width, height: actualSize.height })
     }
   }, [midiInitialized, notes.length, dimensions])
 
@@ -442,7 +441,7 @@ const PianoRoll = ({
     
     // Draw MIDI notes on canvas
     if (notes.length > 0) {
-      console.log(`🎨 Drawing ${notes.length} notes, first note:`, {
+      devLog(`🎨 Drawing ${notes.length} notes, first note:`, {
         pitch: notes[0].pitch,
         start: notes[0].start,
         end: notes[0].end,
@@ -517,7 +516,7 @@ const PianoRoll = ({
     })
     
     if (notes.length > 0) {
-      console.log(`🎨 Drew ${drawnCount} out of ${notes.length} notes (visible in viewport)`)
+      devLog(`🎨 Drew ${drawnCount} out of ${notes.length} notes (visible in viewport)`)
     }
   }
 
