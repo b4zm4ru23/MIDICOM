@@ -18,44 +18,41 @@ export const useMIDI = (audioFile, selectedMidiFile) => {
 
     setLoading(true)
     setError(null)
-    setProcessingStep('Uploading audio file...')
+    setProcessingStep('Uploading and processing audio file...')
 
     try {
-      // Step 1: Upload audio file
-      setProcessingStep('Uploading audio file...')
-      const uploadResult = await uploadAudioFile(file, 'htdemucs', 'librosa')
-      devLog('Upload result:', uploadResult)
+      // Call integrated /transcribe endpoint that does everything in one request
+      setProcessingStep('Processing audio (separation + transcription)...')
+      const result = await uploadAudioFile(file, 'htdemucs', 'librosa')
+      devLog('✅ Processing complete:', result)
 
-      // Step 2: Get separated stems
-      setProcessingStep('Getting separated stems...')
-      try {
-        const stemsData = await getSeparatedStems(uploadResult.filename)
-        setStems(stemsData.stems)
-        devLog('Stems loaded:', stemsData.stems)
-      } catch (stemsError) {
-        devWarn('Stems not available yet:', stemsError.message)
-        // Continue without stems for now
+      // Extract stems and MIDI data from unified response
+      if (result.stems) {
+        setStems(result.stems)
+        devLog('📁 Stems loaded:', Object.keys(result.stems))
       }
 
-      // Step 3: Get MIDI transcription
-      setProcessingStep('Transcribing to MIDI...')
-      try {
-        const midiResult = await getMIDITranscription(uploadResult.filename)
-        setMidiData(midiResult.midi_data)
-        devLog('MIDI data loaded:', midiResult.midi_data)
-      } catch (midiError) {
-        devWarn('MIDI not available yet, using mock data:', midiError.message)
-        // Fallback to mock data if backend MIDI endpoint not ready
+      if (result.midi_data) {
+        setMidiData(result.midi_data)
+        devLog('🎵 MIDI data loaded:', {
+          duration: result.midi_data.duration,
+          tracks: result.midi_data.tracks?.length || 0,
+          notes: result.metadata?.total_notes || 0
+        })
+      } else {
+        devWarn('⚠️ No MIDI data in response, using mock data')
         setMidiData(getMockMidiData(file.name))
       }
 
-      setProcessingStep('Processing complete!')
+      setProcessingStep('✅ Processing complete!')
+      
+      // Show success message briefly
+      setTimeout(() => setProcessingStep(''), 2000)
     } catch (err) {
-      setError(err.message)
-      console.error('Error processing audio file:', err)
+      setError(err.message || 'Processing failed')
+      console.error('❌ Error processing audio file:', err)
     } finally {
       setLoading(false)
-      setProcessingStep('')
     }
   }, [])
 

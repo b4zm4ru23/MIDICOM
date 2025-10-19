@@ -37,10 +37,8 @@ const PianoRoll = ({
   const [showHorizontalScrollbar, setShowHorizontalScrollbar] = useState(false)
   const [isDraggingHorizontalScrollbar, setIsDraggingHorizontalScrollbar] = useState(false)
 
-  // Audio player for stems
+  // Audio player for stems (only for seeking synchronization)
   const { 
-    playStems, 
-    stopStems, 
     seekToTime: setAudioTime,
     isPlaying: audioPlaying 
   } = useAudioPlayer(stems)
@@ -120,14 +118,9 @@ const PianoRoll = ({
     }
   }, [midiData, dimensions.height])
 
-  // Handle playback
-  useEffect(() => {
-    if (isPlaying) {
-      playStems()
-    } else {
-      stopStems()
-    }
-  }, [isPlaying, playStems, stopStems])
+  // NOTE: Removed automatic stem playback on Piano Roll play
+  // Stems are now only played when user explicitly clicks stem play buttons
+  // This prevents double audio (MIDI synth + stems) when playing Piano Roll
 
   // Dimensions are now fixed at 2000x600 when MIDI is loaded
   // No need for dynamic resize

@@ -8,13 +8,29 @@ const API_BASE_URL = 'http://localhost:8000'
  * @param {File} file - Audio file to upload
  * @param {string} separationModel - Model for audio separation (default: 'htdemucs')
  * @param {string} transcriptionMethod - Method for MIDI transcription (default: 'librosa')
- * @returns {Promise<Object>} Upload result
+ * @param {Object} options - Optional processing parameters
+ * @param {number} options.thresholdOnset - Onset detection threshold (0.1-1.0, default: 0.3)
+ * @param {number} options.quantizeMs - Time quantization in milliseconds (default: 50)
+ * @returns {Promise<Object>} Upload result with stems and MIDI data
  */
-export const uploadAudioFile = async (file, separationModel = 'htdemucs', transcriptionMethod = 'librosa') => {
+export const uploadAudioFile = async (
+  file, 
+  separationModel = 'htdemucs', 
+  transcriptionMethod = 'librosa',
+  options = {}
+) => {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('separation_model', separationModel)
   formData.append('transcription_method', transcriptionMethod)
+  
+  // Add optional tuning parameters
+  if (options.thresholdOnset !== undefined) {
+    formData.append('threshold_onset', options.thresholdOnset.toString())
+  }
+  if (options.quantizeMs !== undefined) {
+    formData.append('quantize_ms', options.quantizeMs.toString())
+  }
 
   const response = await fetch(`${API_BASE_URL}/transcribe`, {
     method: 'POST',
@@ -22,7 +38,8 @@ export const uploadAudioFile = async (file, separationModel = 'htdemucs', transc
   })
 
   if (!response.ok) {
-    throw new Error(`Upload failed: ${response.statusText}`)
+    const errorData = await response.json().catch(() => ({ detail: response.statusText }))
+    throw new Error(errorData.detail || `Upload failed: ${response.statusText}`)
   }
 
   return await response.json()
@@ -63,12 +80,12 @@ export const getMIDITranscription = async (filename) => {
 }
 
 /**
- * Get backend status
+ * Get backend status (alias for health check)
  * @returns {Promise<Object>} Status information
  */
 export const getBackendStatus = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/status`, {
+    const response = await fetch(`${API_BASE_URL}/health`, {
       method: 'GET',
       mode: 'cors',
       headers: {
