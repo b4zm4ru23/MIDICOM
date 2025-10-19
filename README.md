@@ -11,21 +11,34 @@ MIDICOM è una desktop application che permette di:
 - Visualizzare e editare le note in un piano-roll interattivo
 - Esportare il risultato come file MIDI
 
-## 🚀 MVP (Minimum Viable Product)
+## 🚀 Status
 
-### Versione 1.0
+### ✅ Sprint 1 - Core Pipeline (COMPLETED - 2025-10-19)
 - [x] Setup progetto e struttura base
-- [ ] Interfaccia Electron + React per caricamento file
-- [ ] Backend Python per separazione stem (Demucs)
-- [ ] Trascrizione MIDI con librosa + pretty_midi
-- [ ] Piano-roll editor base
-- [ ] Esportazione MIDI
+- [x] Interfaccia Electron + React per caricamento file
+- [x] Backend Python per separazione stem (Demucs)
+- [x] Trascrizione MIDI con librosa + pretty_midi
+- [x] Piano-roll editor base con zoom e scroll
+- [x] Playback MIDI synth + stems audio
+- [x] Logging centralizzato frontend/backend
+- [x] Pipeline completa funzionante
 
-### Versione 1.1
-- [ ] Editing avanzato piano-roll (quantizzazione, velocità)
-- [ ] Supporto più formati audio
-- [ ] Batch processing
-- [ ] Preset e template
+**Status**: ✅ **OPERATIONAL** - Pipeline audio → stems → MIDI → Piano Roll funzionante
+
+### 🔄 Sprint 2 - Enhanced Features (PLANNED)
+- [ ] Progress bar real-time per processing
+- [ ] 4-stems separation (vocals, bass, drums, other)
+- [ ] Parametri UI per tuning (threshold, quantization)
+- [ ] Background processing asincrono
+- [ ] Export MIDI button
+- [ ] FFmpeg PATH permanente
+
+### 📋 Sprint 3 - UX/Polish (FUTURE)
+- [ ] Editing avanzato piano-roll (drag notes, resize, delete)
+- [ ] File manager con upload history
+- [ ] Toast notifications per errori
+- [ ] Note editing nel Piano Roll
+- [ ] CREPE pitch detection (opzionale)
 
 ## 🛠 Tech Stack
 
@@ -37,12 +50,13 @@ MIDICOM è una desktop application che permette di:
 - **React Piano Roll** - MIDI editor component
 
 ### Backend
-- **Python 3.9+** - Core processing
+- **Python 3.12** - Core processing (required: >=3.10, <3.14)
 - **FastAPI** - REST API server
-- **Demucs** - Audio source separation
-- **librosa** - Audio analysis
+- **Demucs 4.0** - Audio source separation (CLI-based)
+- **librosa 0.10.2** - Audio analysis
 - **pretty_midi** - MIDI manipulation
 - **uvicorn** - ASGI server
+- **FFmpeg** - Audio format conversion
 
 ### Comunicazione
 - **Local REST API** - Frontend ↔ Backend
