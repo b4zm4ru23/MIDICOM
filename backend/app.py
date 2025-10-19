@@ -22,7 +22,7 @@ from pathlib import Path
 import mido
 
 # Import logger centralizzato
-from backend.logger import setup_logger
+from logger import setup_logger
 
 # Configurazione logging
 logger = setup_logger(__name__)
