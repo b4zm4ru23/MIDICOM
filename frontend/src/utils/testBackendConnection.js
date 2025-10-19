@@ -1,25 +1,26 @@
 // Test utility for backend connection
 import { getBackendStatus, getBackendHealth, isBackendAvailable } from '../services/apiService'
+import { devLog, devWarn } from './logger'
 
 /**
  * Test backend connection and log results
  */
 export const testBackendConnection = async () => {
-  console.log('🔍 Testing backend connection...')
+  devLog('🔍 Testing backend connection...')
   
   try {
     // Test basic availability
     const isAvailable = await isBackendAvailable()
-    console.log('✅ Backend available:', isAvailable)
+    devLog('✅ Backend available:', isAvailable)
     
     if (isAvailable) {
       // Test status endpoint
       const status = await getBackendStatus()
-      console.log('📊 Backend status:', status)
+      devLog('📊 Backend status:', status)
       
       // Test health endpoint
       const health = await getBackendHealth()
-      console.log('🏥 Backend health:', health)
+      devLog('🏥 Backend health:', health)
       
       return {
         success: true,
@@ -27,7 +28,7 @@ export const testBackendConnection = async () => {
         health
       }
     } else {
-      console.warn('❌ Backend not available')
+      devWarn('❌ Backend not available')
       return {
         success: false,
         error: 'Backend not available'
@@ -46,12 +47,12 @@ export const testBackendConnection = async () => {
  * Test file upload functionality
  */
 export const testFileUpload = async (file) => {
-  console.log('📤 Testing file upload...')
+  devLog('📤 Testing file upload...')
   
   try {
     const { uploadAudioFile } = await import('../services/apiService')
     const result = await uploadAudioFile(file)
-    console.log('✅ Upload successful:', result)
+    devLog('✅ Upload successful:', result)
     return result
   } catch (error) {
     console.error('❌ Upload failed:', error)
@@ -63,15 +64,15 @@ export const testFileUpload = async (file) => {
  * Run all backend tests
  */
 export const runBackendTests = async () => {
-  console.log('🧪 Running backend tests...')
+  devLog('🧪 Running backend tests...')
   
   const connectionTest = await testBackendConnection()
   
   if (connectionTest.success) {
-    console.log('✅ All backend tests passed!')
+    devLog('✅ All backend tests passed!')
     return true
   } else {
-    console.log('❌ Backend tests failed:', connectionTest.error)
+    devLog('❌ Backend tests failed:', connectionTest.error)
     return false
   }
 }
