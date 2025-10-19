@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { uploadAudioFile, getSeparatedStems, getMIDITranscription } from '../services/apiService'
+import { devLog, devWarn } from '../utils/logger'
 
 // Backend API configuration
 const API_BASE_URL = 'http://localhost:8000'
@@ -23,16 +24,16 @@ export const useMIDI = (audioFile, selectedMidiFile) => {
       // Step 1: Upload audio file
       setProcessingStep('Uploading audio file...')
       const uploadResult = await uploadAudioFile(file, 'htdemucs', 'librosa')
-      console.log('Upload result:', uploadResult)
+      devLog('Upload result:', uploadResult)
 
       // Step 2: Get separated stems
       setProcessingStep('Getting separated stems...')
       try {
         const stemsData = await getSeparatedStems(uploadResult.filename)
         setStems(stemsData.stems)
-        console.log('Stems loaded:', stemsData.stems)
+        devLog('Stems loaded:', stemsData.stems)
       } catch (stemsError) {
-        console.warn('Stems not available yet:', stemsError.message)
+        devWarn('Stems not available yet:', stemsError.message)
         // Continue without stems for now
       }
 
@@ -41,9 +42,9 @@ export const useMIDI = (audioFile, selectedMidiFile) => {
       try {
         const midiResult = await getMIDITranscription(uploadResult.filename)
         setMidiData(midiResult.midi_data)
-        console.log('MIDI data loaded:', midiResult.midi_data)
+        devLog('MIDI data loaded:', midiResult.midi_data)
       } catch (midiError) {
-        console.warn('MIDI not available yet, using mock data:', midiError.message)
+        devWarn('MIDI not available yet, using mock data:', midiError.message)
         // Fallback to mock data if backend MIDI endpoint not ready
         setMidiData(getMockMidiData(file.name))
       }
@@ -60,7 +61,7 @@ export const useMIDI = (audioFile, selectedMidiFile) => {
 
   // Load MIDI file directly (for test files)
   const loadMIDIFile = useCallback(async (fileName) => {
-    console.log('🎵 loadMIDIFile called with:', fileName)
+    devLog('🎵 loadMIDIFile called with:', fileName)
     if (!fileName) {
       setMidiData(null)
       return
@@ -72,18 +73,18 @@ export const useMIDI = (audioFile, selectedMidiFile) => {
     try {
       // Always try backend first, then fallback to mock data
       try {
-        console.log('🌐 Fetching MIDI from backend:', `${API_BASE_URL}/midi/${fileName}`)
+        devLog('🌐 Fetching MIDI from backend:', `${API_BASE_URL}/midi/${fileName}`)
         const response = await fetch(`${API_BASE_URL}/midi/${fileName}`)
         if (response.ok) {
           const result = await response.json()
-          console.log('✅ MIDI data loaded from backend:', result)
+          devLog('✅ MIDI data loaded from backend:', result)
           
           // Handle different response formats
           if (result.midi_data) {
-            console.log('📊 Setting MIDI data from result.midi_data:', result.midi_data)
+            devLog('📊 Setting MIDI data from result.midi_data:', result.midi_data)
             setMidiData(result.midi_data)
           } else if (result.tracks) {
-            console.log('📊 Setting MIDI data from result:', result)
+            devLog('📊 Setting MIDI data from result:', result)
             setMidiData(result)
           } else {
             throw new Error('Invalid MIDI data format from backend')
@@ -93,14 +94,14 @@ export const useMIDI = (audioFile, selectedMidiFile) => {
           throw new Error(`Backend returned ${response.status}: ${response.statusText}`)
         }
       } catch (backendError) {
-        console.log('Backend MIDI endpoint error:', backendError.message)
-        console.log('Falling back to mock data')
+        devLog('Backend MIDI endpoint error:', backendError.message)
+        devLog('Falling back to mock data')
         
         // Fallback to mock data
         const mockData = getMockMidiData(fileName)
-        console.log('📊 Setting mock MIDI data:', mockData)
+        devLog('📊 Setting mock MIDI data:', mockData)
         setMidiData(mockData)
-        console.log('✅ Using mock MIDI data for:', fileName)
+        devLog('✅ Using mock MIDI data for:', fileName)
       }
     } catch (err) {
       setError(err.message)
@@ -120,7 +121,7 @@ export const useMIDI = (audioFile, selectedMidiFile) => {
   // Load MIDI file when selectedMidiFile changes
   useEffect(() => {
     if (selectedMidiFile && typeof selectedMidiFile === 'string') {
-      console.log('🔄 Loading MIDI file:', selectedMidiFile)
+      devLog('🔄 Loading MIDI file:', selectedMidiFile)
       loadMIDIFile(selectedMidiFile)
     }
   }, [selectedMidiFile, loadMIDIFile])
