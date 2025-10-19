@@ -237,3 +237,72 @@ curl -X POST -F "file=@test.wav" http://localhost:8000/transcribe
 
 Frontend tests are automatically run on app startup and logged to console.
 
+## 📊 Logger System
+
+MIDICOM implements a unified logging system across frontend and backend for consistent debugging and monitoring.
+
+### Frontend Logger (`frontend/src/utils/logger.js`)
+
+The frontend uses a development-only logging wrapper:
+
+```javascript
+import { devLog, devWarn, devError } from '../utils/logger'
+
+// Only logs in development mode (import.meta.env.DEV)
+devLog('Debug message:', data)
+devWarn('Warning message')
+
+// Always logs (for critical errors)
+devError('Error message:', error)
+```
+
+**Features:**
+- **Development Only**: Logs automatically disabled in production builds
+- **Zero Overhead**: No performance impact in production
+- **Consistent API**: Same interface as console.log/warn/error
+
+### Backend Logger (`backend/logger.py`)
+
+The backend uses a centralized colored logging system:
+
+```python
+from logger import setup_logger
+
+logger = setup_logger(__name__)
+
+logger.info("Information message")      # Green
+logger.warning("Warning message")       # Yellow
+logger.error("Error message")          # Red
+logger.critical("Critical message")    # Bright Red + Bold
+logger.debug("Debug message")          # Cyan
+```
+
+**Features:**
+- **Colored Output**: ANSI colors for different log levels
+- **Timestamps**: Automatic timestamp formatting
+- **Module Names**: Shows which module logged the message
+- **File Logging**: Optional file output support
+- **Flexible Configuration**: Customizable log levels
+
+### Log Levels
+
+#### Frontend:
+- `devLog()` - Development debugging (INFO level)
+- `devWarn()` - Development warnings
+- `devError()` - Always logged errors
+- `prodLog()` - Production logging (use sparingly)
+
+#### Backend:
+- `DEBUG` - Detailed debugging information
+- `INFO` - General informational messages (default)
+- `WARNING` - Warning messages
+- `ERROR` - Error messages
+- `CRITICAL` - Critical error messages
+
+### Best Practices
+
+1. **Frontend**: Use `devLog` for debugging, preserve critical AudioContext/Transport logs
+2. **Backend**: Use appropriate log levels (INFO for normal operations, ERROR for failures)
+3. **Production**: Frontend logs automatically disabled, backend logs to stdout/file
+4. **Debugging**: Check console (frontend) or terminal (backend) for colored output
+
