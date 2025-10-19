@@ -1,36 +1,71 @@
 import React, { useState, useCallback, useEffect } from 'react'
-import { Upload, Play, Pause, Square, FileAudio, Music, Settings, FolderOpen } from 'lucide-react'
+import { Upload, Play, Pause, Square, FileAudio, Music, Settings, FolderOpen, AlertCircle, Loader2 } from 'lucide-react'
 import * as Tone from 'tone'
 import PianoRoll from './components/PianoRoll'
 import AudioPlayer from './components/AudioPlayer'
-import { processAudio, getStems } from './services/audioService'
+import AudioInitializer from './components/AudioInitializer'
 import { usePlayback } from './hooks/usePlayback'
 import { useMIDI } from './hooks/useMIDI'
+import { useMIDIPlayer } from './hooks/useMIDIPlayer'
+import { useAudioPlayer } from './hooks/useAudioPlayer'
+import { testBackendConnection } from './utils/testBackendConnection'
+import { uploadMIDIFile } from './services/apiService'
+import { devLog, devWarn } from './utils/logger'
 
 function App() {
   const [selectedFile, setSelectedFile] = useState(null)
-  const [stems, setStems] = useState([])
-  const [isProcessing, setIsProcessing] = useState(false)
   const [selectedMidi, setSelectedMidi] = useState(null)
   const [audioContextState, setAudioContextState] = useState('not initialized')
+  const [audioInitialized, setAudioInitialized] = useState(false)
+  const [midiUploading, setMidiUploading] = useState(false)
+  const [midiUploadError, setMidiUploadError] = useState(null)
   
-  // Load MIDI data
-  const { midiData } = useMIDI(selectedMidi)
+  // Load MIDI data and process audio files
+  const { midiData, stems, loading: midiLoading, error: midiError, processingStep } = useMIDI(selectedFile, selectedMidi)
   
   // Playback system
   const { isPlaying, currentTime, duration, play, pause, stop, seek } = usePlayback(midiData)
+  
+  // MIDI player for synthesized playback
+  const { isInitialized: midiInitialized, activeNotes, trackVolumes, trackMutes, setTrackVolume, setTrackMute, testSynth } = useMIDIPlayer(midiData, isPlaying, currentTime)
+  
+  // Audio player for stems
+  const { 
+    isPlaying: stemsPlaying, 
+    currentTime: stemsCurrentTime, 
+    duration: stemsDuration, 
+    loading: stemsLoading, 
+    error: stemsError,
+    stemVolumes, 
+    stemMutes, 
+    playStems, 
+    stopStems, 
+    pauseStems, 
+    seekToTime: seekStems, 
+    setVolume: setStemVolume, 
+    setMute: setStemMute 
+  } = useAudioPlayer(stems)
 
-  // Check Electron API availability (development only)
+  // Check Electron API availability and test backend connection
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development' && window.electronAPI) {
-      console.log('Electron API available with methods:', Object.keys(window.electronAPI))
+    if (window.electronAPI) {
+      devLog('Electron API available with methods:', Object.keys(window.electronAPI))
     }
+    
+    // Test backend connection on app start
+    testBackendConnection().then(result => {
+      if (result.success) {
+        devLog('✅ Backend connection successful')
+      } else {
+        devWarn('⚠️ Backend connection failed:', result.error)
+      }
+    })
   }, [])
 
   // Log MIDI state changes (development only)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development' && selectedMidi) {
-      console.log('MIDI state:', { selectedMidi, isPlaying, currentTime: currentTime.toFixed(1) })
+    if (selectedMidi) {
+      devLog('MIDI state:', { selectedMidi, isPlaying, currentTime: currentTime.toFixed(1) })
     }
   }, [selectedMidi, isPlaying, currentTime])
 
@@ -75,7 +110,6 @@ function App() {
         const filePath = await window.electronAPI.selectAudioFile()
         if (filePath) {
           setSelectedFile(filePath)
-          setStems([])
           setSelectedMidi(null)
         }
       } else {
@@ -86,10 +120,9 @@ function App() {
         input.onchange = (e) => {
           const file = e.target.files[0]
           if (file) {
-            setSelectedFile(file.name)
-            setStems([])
+            setSelectedFile(file) // Pass the actual file object for backend processing
             setSelectedMidi(null)
-            // File selected successfully
+            devLog('Audio file selected:', file.name)
           }
         }
         input.click()
@@ -99,51 +132,46 @@ function App() {
     }
   }, [])
 
-  const handleProcessAudio = useCallback(async () => {
-    if (!selectedFile) return
+  // Remove handleProcessAudio since processing is now handled automatically by useMIDI hook
 
-    setIsProcessing(true)
-    try {
-      const result = await processAudio(selectedFile)
-      if (result.success) {
-        setStems(result.stems)
-        // Audio processing completed
-      } else {
-        console.error('Processing failed:', result.error)
-      }
-    } catch (error) {
-      console.error('Error processing audio:', error)
-    } finally {
-      setIsProcessing(false)
+  const handleMIDIUpload = useCallback(async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    // Verifica che sia un file MIDI
+    if (!file.name.toLowerCase().endsWith('.mid') && !file.name.toLowerCase().endsWith('.midi')) {
+      setMidiUploadError('Seleziona un file MIDI (.mid o .midi)')
+      return
     }
-  }, [selectedFile])
 
-  const handleMidiSelect = useCallback(async () => {
+    setMidiUploading(true)
+    setMidiUploadError(null)
+
     try {
-      // Try Electron API first
-      if (window.electronAPI && window.electronAPI.selectMidiFile) {
-        const filePath = await window.electronAPI.selectMidiFile()
-        if (filePath) {
-          setSelectedMidi(filePath)
-        }
-      } else {
-        // Fallback to browser file input
-        const input = document.createElement('input')
-        input.type = 'file'
-        input.accept = '.mid,.midi'
-        input.onchange = (e) => {
-          const file = e.target.files[0]
-          if (file) {
-            setSelectedMidi(file.name)
-            // MIDI file selected successfully
-          }
-        }
-        input.click()
-      }
+      const result = await uploadMIDIFile(file)
+      devLog('MIDI file uploaded successfully:', result)
+      
+      // Imposta il file MIDI caricato come selezionato
+      devLog('🎵 Setting selectedMidi to:', file.name)
+      setSelectedMidi(file.name)
+      setSelectedFile(null) // Reset audio file selection
+      
     } catch (error) {
-      console.error('Error selecting MIDI file:', error)
+      console.error('Error uploading MIDI file:', error)
+      setMidiUploadError(error.message || 'Errore durante l\'upload del file MIDI')
+    } finally {
+      setMidiUploading(false)
     }
   }, [])
+
+  const handleMidiSelect = useCallback(() => {
+    // Create file input for MIDI upload
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.mid,.midi'
+    input.onchange = handleMIDIUpload
+    input.click()
+  }, [handleMIDIUpload])
 
   const handlePlaybackToggle = useCallback(async () => {
     try {
@@ -167,21 +195,21 @@ function App() {
     stop()
   }, [stop])
 
-  // Initialize AudioContext on first user interaction
-  const initializeAudio = useCallback(async () => {
-    try {
-      if (Tone.context.state !== 'running') {
-        console.log('Initializing AudioContext...')
-        await Tone.start()
-        // AudioContext ready for playback
-      }
-    } catch (error) {
-      console.error('Error initializing AudioContext:', error)
+  // Handle audio initialization
+  const handleAudioInitialized = useCallback((success) => {
+    setAudioInitialized(success)
+    if (success) {
+      setAudioContextState('running')
+      console.log('✅ Audio system initialized successfully')
+    } else {
+      setAudioContextState('failed')
+      console.error('❌ Audio system initialization failed')
     }
   }, [])
 
   return (
-    <div className="h-screen bg-gray-900 text-white flex flex-col">
+    <AudioInitializer onInitialized={handleAudioInitialized}>
+      <div className="h-screen bg-gray-900 text-white flex flex-col">
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -191,15 +219,18 @@ function App() {
             <span className="text-sm text-gray-400">MIDI Composition Tool</span>
           </div>
           <div className="flex items-center space-x-2">
-            <button
-              onClick={initializeAudio}
+            <div className={`px-3 py-1 rounded text-sm ${
+              audioContextState === 'running' ? 'bg-green-600' : 
+              audioContextState === 'failed' ? 'bg-red-600' : 'bg-gray-600'
+            } text-white`}>
+              Audio: {audioContextState}
+            </div>
+            <button 
+              onClick={testSynth}
               className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm"
             >
-              Init Audio
+              Test Audio
             </button>
-            <div className="px-3 py-1 bg-gray-600 rounded text-sm text-white">
-              AudioContext: {audioContextState}
-            </div>
             <button className="p-2 hover:bg-gray-700 rounded-lg transition-colors">
               <Settings className="h-5 w-5" />
             </button>
@@ -219,7 +250,10 @@ function App() {
                 <div className="flex items-center space-x-2 p-3 bg-gray-700 rounded-lg">
                   <FileAudio className="h-5 w-5 text-primary-500" />
                   <span className="text-sm truncate flex-1">
-                    {selectedFile.includes('\\') ? selectedFile.split('\\').pop() : selectedFile}
+                    {typeof selectedFile === 'string' 
+                      ? (selectedFile.includes('\\') ? selectedFile.split('\\').pop() : selectedFile)
+                      : selectedFile.name
+                    }
                   </span>
                 </div>
                 <button
@@ -240,24 +274,24 @@ function App() {
               </button>
             )}
 
-            {selectedFile && (
-              <button
-                onClick={handleProcessAudio}
-                disabled={isProcessing}
-                className="w-full mt-4 bg-primary-600 hover:bg-primary-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                    <span>Processando...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4" />
-                    <span>Processa Audio</span>
-                  </>
-                )}
-              </button>
+            {/* Processing Status */}
+            {midiLoading && (
+              <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                  <span className="text-sm text-blue-300">{processingStep || 'Processing...'}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Error Display */}
+            {midiError && (
+              <div className="mt-4 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="h-4 w-4 text-red-400" />
+                  <span className="text-sm text-red-300">{midiError}</span>
+                </div>
+              </div>
             )}
           </div>
 
@@ -265,29 +299,60 @@ function App() {
           <div className="flex-1 p-6 overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4">Stem Separati</h3>
             
-            {stems.length === 0 ? (
+            {Object.keys(stems).length === 0 ? (
               <div className="text-center text-gray-500 py-8">
                 <FolderOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p className="text-sm">Nessuno stem disponibile</p>
-                <p className="text-xs">Processa un file audio per iniziare</p>
+                <p className="text-xs">Carica un file audio per iniziare</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {Object.entries(stems).map(([name, path]) => (
                   <div
                     key={name}
-                    className="p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors cursor-pointer"
+                    className="p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-2">
                       <div>
                         <h4 className="font-medium capitalize">{name}</h4>
                         <p className="text-xs text-gray-400 truncate">
-                          {path.split('\\').pop()}
+                          {typeof path === 'string' ? path.split('\\').pop() : 'Loading...'}
                         </p>
                       </div>
-                      <button className="p-1 hover:bg-gray-500 rounded transition-colors">
-                        <Play className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center space-x-1">
+                        <button 
+                          onClick={() => setStemMute(name, !stemMutes[name])}
+                          className={`p-1 rounded transition-colors ${
+                            stemMutes[name] ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-600 hover:bg-gray-500'
+                          }`}
+                          title={stemMutes[name] ? 'Unmute' : 'Mute'}
+                        >
+                          {stemMutes[name] ? '🔇' : '🔊'}
+                        </button>
+                        <button 
+                          onClick={() => playStems()}
+                          className="p-1 hover:bg-gray-500 rounded transition-colors"
+                          title="Play"
+                        >
+                          <Play className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    {/* Volume control */}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-400">Vol:</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={stemVolumes[name] || 1}
+                        onChange={(e) => setStemVolume(name, parseFloat(e.target.value))}
+                        className="flex-1 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <span className="text-xs text-gray-400 w-8">
+                        {Math.round((stemVolumes[name] || 1) * 100)}%
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -324,10 +389,36 @@ function App() {
               </button>
             )}
 
-            {/* Test MIDI Files */}
+            {/* MIDI Upload Status */}
+            {midiUploading && (
+              <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                  <span className="text-sm text-blue-300">Caricamento file MIDI...</span>
+                </div>
+              </div>
+            )}
+
+            {/* MIDI Upload Error */}
+            {midiUploadError && (
+              <div className="mt-4 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="h-4 w-4 text-red-400" />
+                  <span className="text-sm text-red-300">{midiUploadError}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Test MIDI Files (Optional) */}
             <div className="mt-4">
-              <h4 className="text-sm font-medium text-gray-300 mb-2">File di Test</h4>
+              <h4 className="text-sm font-medium text-gray-300 mb-2">File di Test (Opzionale)</h4>
               <div className="space-y-2">
+                <button
+                  onClick={() => setSelectedMidi('Frank_Sinatra_-_More.mid')}
+                  className="w-full p-2 text-xs bg-gray-700 hover:bg-gray-600 rounded text-left transition-colors"
+                >
+                  🎵 Frank Sinatra - More
+                </button>
                 <button
                   onClick={() => setSelectedMidi('melody_test.mid')}
                   className="w-full p-2 text-xs bg-gray-700 hover:bg-gray-600 rounded text-left transition-colors"
@@ -339,18 +430,6 @@ function App() {
                   className="w-full p-2 text-xs bg-gray-700 hover:bg-gray-600 rounded text-left transition-colors"
                 >
                   🎹 Accordi (C-F-G-Am)
-                </button>
-                <button
-                  onClick={() => setSelectedMidi('c_major_scale.mid')}
-                  className="w-full p-2 text-xs bg-gray-700 hover:bg-gray-600 rounded text-left transition-colors"
-                >
-                  🎼 Scala Do Maggiore
-                </button>
-                <button
-                  onClick={() => setSelectedMidi('drum_pattern.mid')}
-                  className="w-full p-2 text-xs bg-gray-700 hover:bg-gray-600 rounded text-left transition-colors"
-                >
-                  🥁 Pattern Batteria
                 </button>
               </div>
             </div>
@@ -413,7 +492,7 @@ function App() {
 
           {/* Piano Roll */}
           <div className="flex-1 p-6">
-            {selectedMidi ? (
+            {midiData ? (
               <PianoRoll 
                 midiFile={selectedMidi}
                 midiData={midiData}
@@ -422,13 +501,24 @@ function App() {
                 currentTime={currentTime}
                 duration={duration}
                 onSeek={seek}
+                activeNotes={activeNotes}
+                trackVolumes={trackVolumes}
+                trackMutes={trackMutes}
+                setTrackVolume={setTrackVolume}
+                setTrackMute={setTrackMute}
               />
             ) : (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center text-gray-500">
                   <Music className="h-16 w-16 mx-auto mb-4 opacity-50" />
                   <h3 className="text-xl font-semibold mb-2">Nessun MIDI caricato</h3>
-                  <p className="text-sm">Carica un file MIDI per visualizzare il piano roll</p>
+                  <p className="text-sm">Carica un file audio o MIDI per visualizzare il piano roll</p>
+                  {midiLoading && (
+                    <div className="mt-4 flex items-center justify-center space-x-2">
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-400" />
+                      <span className="text-sm text-blue-300">{processingStep || 'Processing...'}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -436,6 +526,7 @@ function App() {
         </main>
       </div>
     </div>
+    </AudioInitializer>
   )
 }
 

@@ -3,6 +3,7 @@ import * as Tone from 'tone'
 import { useMIDI } from '../hooks/useMIDI'
 import { useAudioPlayer } from '../hooks/useAudioPlayer'
 import { useMIDIPlayer } from '../hooks/useMIDIPlayer'
+import { devLog } from '../utils/logger'
 
 // Utility function to format time
 const formatTime = (seconds) => {
@@ -23,7 +24,7 @@ const PianoRoll = ({
 }) => {
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
-  const [dimensions, setDimensions] = useState({ width: 800, height: 400 }) // Default dimensions
+  const [dimensions, setDimensions] = useState({ width: 2000, height: 600 }) // Fixed dimensions for MIDI display
   const [notes, setNotes] = useState([])
   const [zoom, setZoom] = useState(1.95) // Default zoom to 195% for better visibility
   const [scrollX, setScrollX] = useState(0)
@@ -49,15 +50,21 @@ const PianoRoll = ({
 
   // Debug: Log MIDI player status (only in development)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('PianoRoll: MIDI Player initialized:', midiInitialized, 'Notes:', notes.length)
+    devLog('PianoRoll: MIDI Player initialized:', midiInitialized, 'Notes:', notes.length)
+    devLog('PianoRoll: Fixed dimensions:', dimensions)
+    if (containerRef.current) {
+      const actualSize = containerRef.current.getBoundingClientRect()
+      devLog('PianoRoll: Container actual size:', { width: actualSize.width, height: actualSize.height })
     }
-  }, [midiInitialized, notes.length])
+  }, [midiInitialized, notes.length, dimensions])
 
   // Update notes when MIDI data changes
   useEffect(() => {
     if (midiData) {
       setIsChangingMIDI(true) // Prevent tremolio during MIDI change
+      
+      // Set fixed dimensions when MIDI is loaded
+      setDimensions({ width: 2000, height: 600 })
       
       const extractedNotes = extractNotesFromMIDI(midiData)
       setNotes(extractedNotes)
@@ -122,31 +129,8 @@ const PianoRoll = ({
     }
   }, [isPlaying, playStems, stopStems])
 
-  // Unified dimension update function
-  const updateDimensions = useCallback(() => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect()
-      if (rect.width > 0 && rect.height > 0) {
-        setDimensions({ width: rect.width, height: rect.height })
-      }
-    }
-  }, [])
-
-  // Update canvas dimensions with debounce to avoid tremolio
-  useEffect(() => {
-    let timeoutId
-    const debouncedUpdate = () => {
-      clearTimeout(timeoutId)
-      timeoutId = setTimeout(updateDimensions, 100) // Debounce 100ms
-    }
-
-    updateDimensions()
-    window.addEventListener('resize', debouncedUpdate)
-    return () => {
-      window.removeEventListener('resize', debouncedUpdate)
-      clearTimeout(timeoutId)
-    }
-  }, [updateDimensions])
+  // Dimensions are now fixed at 2000x600 when MIDI is loaded
+  // No need for dynamic resize
 
   // Extract notes from MIDI data with track information
   // Algoritmo: parsing MIDI tracks -> note objects con metadata
@@ -456,7 +440,22 @@ const PianoRoll = ({
     const keyWidth = 400
     
     // Draw MIDI notes on canvas
+    if (notes.length > 0) {
+      devLog(`🎨 Drawing ${notes.length} notes, first note:`, {
+        pitch: notes[0].pitch,
+        start: notes[0].start,
+        end: notes[0].end,
+        x: timeToPixels(notes[0].start),
+        y: pitchToY(notes[0].pitch),
+        scrollX,
+        scrollY,
+        zoom,
+        containerWidth,
+        containerHeight
+      })
+    }
     
+    let drawnCount = 0
     notes.forEach(note => {
       // Show all notes in the full MIDI range
       // No filtering needed - we show the full range
@@ -476,6 +475,7 @@ const PianoRoll = ({
 
       // Check if note is visible in the current viewport
       if (x + width > keyWidth && x < containerWidth && y > 0 && y < containerHeight) {
+        drawnCount++
         // Note color based on velocity with better contrast
         const intensity = note.velocity / 127
         const hue = (note.pitch * 2.8) % 360
@@ -514,6 +514,10 @@ const PianoRoll = ({
         }
       }
     })
+    
+    if (notes.length > 0) {
+      devLog(`🎨 Drew ${drawnCount} out of ${notes.length} notes (visible in viewport)`)
+    }
   }
 
   // Draw playhead with smoother rendering
@@ -784,8 +788,6 @@ const PianoRoll = ({
 
   // Handle wheel events for zoom and scroll with optimized debounce
   const handleWheel = useCallback((e) => {
-    e.preventDefault()
-    
     // Optimized throttle: 16ms = 60fps, prevents excessive calculations
     const now = Date.now()
     if (handleWheel.lastUpdate && now - handleWheel.lastUpdate < 16) {
@@ -819,72 +821,26 @@ const PianoRoll = ({
     }
   }, [dimensions.height])
 
-  // Add wheel event listener with passive: false to allow preventDefault
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-
-    const wheelHandler = (e) => {
-      handleWheel(e)
-    }
-
-    // Add event listener with passive: false
-    container.addEventListener('wheel', wheelHandler, { passive: false })
-
-    return () => {
-      container.removeEventListener('wheel', wheelHandler)
-    }
-  }, [handleWheel])
+  // Wheel handler is now attached via onWheel prop instead of addEventListener
+  // This ensures it's attached after the component is mounted and can preventDefault
 
 
-  // Initialize canvas dimensions with multiple attempts
-  useEffect(() => {
-    // Multiple attempts to ensure dimensions are captured
-    const timeouts = [100, 300, 500, 1000].map(delay => 
-      setTimeout(updateDimensions, delay)
-    )
-    
-    window.addEventListener('resize', updateDimensions)
-    return () => {
-      timeouts.forEach(clearTimeout)
-      window.removeEventListener('resize', updateDimensions)
-    }
-  }, [updateDimensions])
+  // Dimensions are now fixed - no need for initialization or updates
 
-  // Update dimensions when MIDI data changes
-  useEffect(() => {
-    if (midiData) {
-      // Update dimensions when new MIDI data is loaded
-      setTimeout(updateDimensions, 100)
-      setTimeout(updateDimensions, 300)
-    }
-  }, [midiData, updateDimensions])
-
-  // Update canvas dimensions when zoom changes
+  // Update canvas dimensions when zoom changes - using fixed dimensions
   useEffect(() => {
     const updateCanvasSize = () => {
-      if (containerRef.current && canvasRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
+      if (canvasRef.current) {
         const canvas = canvasRef.current
-        canvas.width = rect.width * zoom
-        canvas.height = rect.height
+        // Use fixed dimensions
+        canvas.width = dimensions.width * zoom
+        canvas.height = dimensions.height
         // Canvas resized for zoom level
       }
     }
 
     updateCanvasSize()
-  }, [zoom])
-
-  // Add wheel event listener with passive: false
-  useEffect(() => {
-    const container = containerRef.current
-    if (container) {
-      container.addEventListener('wheel', handleWheel, { passive: false })
-      return () => {
-        container.removeEventListener('wheel', handleWheel)
-      }
-    }
-  }, [handleWheel])
+  }, [zoom, dimensions])
 
   // Redraw when dependencies change (with debounce to avoid tremolio)
   useEffect(() => {
@@ -903,14 +859,7 @@ const PianoRoll = ({
     return () => clearTimeout(timeoutId)
   }, [draw, isChangingMIDI])
 
-  // Force dimension update when dimensions are too small
-  useEffect(() => {
-    if (dimensions.width < 500 || dimensions.height < 200) {
-      // Force dimension update for small containers
-      setTimeout(updateDimensions, 200)
-      setTimeout(updateDimensions, 500)
-    }
-  }, [dimensions, updateDimensions])
+  // Dimensions are fixed at 2000x600 - no need to check for small sizes
 
   // Redraw when currentTime changes (for playhead movement) - optimized for smoothness
   useEffect(() => {
@@ -948,7 +897,7 @@ const PianoRoll = ({
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col">
       {/* Piano Roll Controls */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-4">
@@ -984,63 +933,6 @@ const PianoRoll = ({
           >
             +
           </button>
-          
-          {/* Horizontal scroll buttons - Show when zoom > 1.0 */}
-          {zoom > 1.0 && (() => {
-            const keyWidth = 400
-            const availableWidth = dimensions.width - keyWidth
-            const BPM = 120
-            const beatsPerBar = 4
-            const barsToShow = 16
-            const basePixelsPerBeat = availableWidth / (barsToShow * beatsPerBar)
-            const zoomedPixelsPerBeat = basePixelsPerBeat * zoom
-            const totalContentWidth = barsToShow * beatsPerBar * zoomedPixelsPerBeat
-            const maxScrollX = Math.min(0, availableWidth - totalContentWidth)
-            
-            const scrollStep = 50 // Pixels to scroll per click
-            
-            const handleScrollLeft = () => {
-              setScrollX(prev => {
-                const newScrollX = prev + scrollStep
-                return Math.min(0, newScrollX) // Don't allow positive scrollX
-              })
-            }
-            
-            const handleScrollRight = () => {
-              setScrollX(prev => {
-                const newScrollX = prev - scrollStep
-                return Math.max(maxScrollX, newScrollX) // Don't scroll beyond max
-              })
-            }
-            
-            return (
-              <div className="flex items-center space-x-1 ml-4">
-                {/* Left arrow button */}
-                <button
-                  onClick={handleScrollLeft}
-                  disabled={scrollX >= 0}
-                  className="w-6 h-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded flex items-center justify-center transition-colors duration-200"
-                  title="Scorri a sinistra"
-                >
-                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                
-                {/* Right arrow button */}
-                <button
-                  onClick={handleScrollRight}
-                  disabled={scrollX <= maxScrollX}
-                  className="w-6 h-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded flex items-center justify-center transition-colors duration-200"
-                  title="Scorri a destra"
-                >
-                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-            )
-          })()}
           
           <span className="text-xs text-gray-500 ml-2">
             (Ctrl + rotella per zoom)
@@ -1087,16 +979,26 @@ const PianoRoll = ({
         </div>
       </div>
 
-      {/* Piano Roll Canvas */}
-      <div 
-        ref={containerRef}
-        className="flex-1 piano-roll-container relative"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        style={{ touchAction: 'none', minHeight: '400px' }}
-      >
+      {/* Piano Roll Canvas - Fixed dimensions container with relative positioning */}
+      <div className="relative" style={{ width: '2000px', height: '600px' }}>
+        <div 
+          ref={containerRef}
+          className="piano-roll-container"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onWheel={handleWheel}
+          style={{ 
+            touchAction: 'none',
+            width: '100%', 
+            height: '100%',
+            overflow: 'hidden',
+            border: '2px solid #4B5563',
+            borderRadius: '8px',
+            backgroundColor: '#1F2937'
+          }}
+        >
         <canvas
           ref={canvasRef}
           className={`w-full h-full ${isDraggingPlayhead ? 'cursor-grabbing' : 'cursor-grab'}`}
@@ -1139,42 +1041,104 @@ const PianoRoll = ({
           </div>
         )}
         
-        {/* Manual center button */}
-        {notes.length > 0 && (
-          <button
-            onClick={() => {
-              if (notes.length > 0) {
-                const minPitch = Math.min(...notes.map(n => n.pitch))
-                const maxPitch = Math.max(...notes.map(n => n.pitch))
-                const centerPitch = (minPitch + maxPitch) / 2
-                
-                const keyHeight = 20
-                const containerHeight = dimensions.height
-                const centerPitchY = (127 - centerPitch) * keyHeight
-                const viewportCenter = containerHeight / 2
-                const targetScrollY = centerPitchY - viewportCenter
-                const padding = containerHeight * 0.3
-                const adjustedScrollY = targetScrollY - padding
-                const maxScrollY = Math.max(0, (128 * keyHeight) - containerHeight)
-                const finalScrollY = Math.max(0, Math.min(maxScrollY, adjustedScrollY))
-                
-                setScrollY(finalScrollY)
-                setAutoCenterMessage(`Centrato manualmente su note: ${minPitch}-${maxPitch}`)
-                setTimeout(() => setAutoCenterMessage(''), 2000)
-              }
-            }}
-            className="absolute left-2 bottom-2 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded shadow-lg transition-colors"
-            title="Centra sulle note"
-          >
-            🎯 Centra
-          </button>
-        )}
-        
         {/* Debug info for horizontal scrollbar */}
         <div className="absolute right-2 bottom-2 bg-red-600 bg-opacity-90 text-white text-xs px-2 py-1 rounded pointer-events-none">
           Scrollbar: {showHorizontalScrollbar ? 'ON' : 'OFF'} | Zoom: {Math.round(zoom * 100)}%
         </div>
+        </div>
       </div>
+      
+      {/* Center button - Left side */}
+      {notes.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', marginLeft: '8px' }}>
+          <button
+              onClick={() => {
+                if (notes.length > 0) {
+                  const minPitch = Math.min(...notes.map(n => n.pitch))
+                  const maxPitch = Math.max(...notes.map(n => n.pitch))
+                  const centerPitch = (minPitch + maxPitch) / 2
+                  
+                  const keyHeight = 20
+                  const containerHeight = dimensions.height
+                  const centerPitchY = (127 - centerPitch) * keyHeight
+                  const viewportCenter = containerHeight / 2
+                  const targetScrollY = centerPitchY - viewportCenter
+                  const padding = containerHeight * 0.3
+                  const adjustedScrollY = targetScrollY - padding
+                  const maxScrollY = Math.max(0, (128 * keyHeight) - containerHeight)
+                  const finalScrollY = Math.max(0, Math.min(maxScrollY, adjustedScrollY))
+                  
+                  setScrollY(finalScrollY)
+                  setAutoCenterMessage(`Centrato manualmente su note: ${minPitch}-${maxPitch}`)
+                  setTimeout(() => setAutoCenterMessage(''), 2000)
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-2 rounded shadow-lg transition-colors"
+              title="Centra sulle note"
+            >
+              🎯 Centra
+            </button>
+        </div>
+      )}
+      
+      {/* Horizontal scroll buttons - Centered */}
+      {notes.length > 0 && zoom > 1.0 && (() => {
+              const keyWidth = 400
+              const availableWidth = dimensions.width - keyWidth
+              const BPM = 120
+              const beatsPerBar = 4
+              const barsToShow = 16
+              const basePixelsPerBeat = availableWidth / (barsToShow * beatsPerBar)
+              const zoomedPixelsPerBeat = basePixelsPerBeat * zoom
+              const totalContentWidth = barsToShow * beatsPerBar * zoomedPixelsPerBeat
+              const maxScrollX = Math.min(0, availableWidth - totalContentWidth)
+              
+              const scrollStep = 50 // Pixels to scroll per click
+              
+              const handleScrollLeft = () => {
+                setScrollX(prev => {
+                  const newScrollX = prev + scrollStep
+                  return Math.min(0, newScrollX) // Don't allow positive scrollX
+                })
+              }
+              
+              const handleScrollRight = () => {
+                setScrollX(prev => {
+                  const newScrollX = prev - scrollStep
+                  return Math.max(maxScrollX, newScrollX) // Don't scroll beyond max
+                })
+              }
+              
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-20px', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                    {/* Left arrow button */}
+                    <button
+                      onClick={handleScrollLeft}
+                      disabled={scrollX >= 0}
+                      className="w-8 h-8 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded flex items-center justify-center transition-colors duration-200 shadow-lg text-white text-base"
+                      title="Scorri a sinistra"
+                    >
+                      ⬅️
+                    </button>
+                    
+                    {/* Right arrow button */}
+                    <button
+                      onClick={handleScrollRight}
+                      disabled={scrollX <= maxScrollX}
+                      className="w-8 h-8 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded flex items-center justify-center transition-colors duration-200 shadow-lg text-white text-base"
+                      title="Scorri a destra"
+                    >
+                      ➡️
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+                    move piano left-right
+                  </div>
+                </div>
+              )
+            })()}
+      )}
     </div>
   )
 }
