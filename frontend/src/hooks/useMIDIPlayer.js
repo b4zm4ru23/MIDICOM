@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import * as Tone from 'tone'
+import { devLog } from '../utils/logger'
 
 export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
   const [isInitialized, setIsInitialized] = useState(false)
@@ -7,12 +8,12 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
   
   // Debug log for isInitialized changes
   useEffect(() => {
-    console.log('🔄 isInitialized changed to:', isInitialized)
+    devLog('🔄 isInitialized changed to:', isInitialized)
   }, [isInitialized])
 
   // Debug log for audioContextReady changes
   useEffect(() => {
-    console.log('🔊 audioContextReady changed to:', audioContextReady)
+    devLog('🔊 audioContextReady changed to:', audioContextReady)
   }, [audioContextReady])
 
   const [activeNotes, setActiveNotes] = useState([])
@@ -43,26 +44,26 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
     const initSynths = async () => {
       try {
         console.log('🔊 AudioContext state:', Tone.context.state)
-        console.log('🎵 MIDI data available:', !!midiData)
-        console.log('🎵 Tracks available:', midiData?.tracks?.length || 0)
+        devLog('🎵 MIDI data available:', !!midiData)
+        devLog('🎵 Tracks available:', midiData?.tracks?.length || 0)
         
         if (Tone.context.state !== 'running') {
-          console.log('❌ AudioContext not ready, skipping synth initialization')
+          devLog('❌ AudioContext not ready, skipping synth initialization')
           setIsInitialized(false)
           return
         }
 
         if (!midiData || !midiData.tracks) {
-          console.log('❌ No MIDI data or tracks available')
+          devLog('❌ No MIDI data or tracks available')
           setIsInitialized(false)
           return
         }
 
-        console.log('✅ AudioContext is running, proceeding with initialization...')
+        devLog('✅ AudioContext is running, proceeding with initialization...')
 
         // Create synthesizers for each track
-        console.log('🎵 Creating synthesizers for tracks:', midiData.tracks.map(t => t.name))
-        console.log('🎵 MIDI data structure:', midiData)
+        devLog('🎵 Creating synthesizers for tracks:', midiData.tracks.map(t => t.name))
+        devLog('🎵 MIDI data structure:', midiData)
         
         midiData.tracks.forEach((track, index) => {
           if (!synthRef.current[track.name]) {
@@ -94,7 +95,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
             const volumeOffset = index * -2 // Each track 2dB quieter (reduced from -5)
             synthRef.current[track.name].volume.value = baseVolume + volumeOffset
 
-            console.log(`✅ Created synth for track: ${track.name}`, {
+            devLog(`✅ Created synth for track: ${track.name}`, {
               type: synthType,
               volume: baseVolume + volumeOffset,
               notes: track.notes?.length || 0,
@@ -107,13 +108,13 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
           }
         })
 
-        console.log('✅ MIDI synthesizers initialized for tracks:', Object.keys(synthRef.current))
-        console.log('✅ Total synthesizers created:', Object.keys(synthRef.current).length)
+        devLog('✅ MIDI synthesizers initialized for tracks:', Object.keys(synthRef.current))
+        devLog('✅ Total synthesizers created:', Object.keys(synthRef.current).length)
         
         // Set initialized state after a small delay to ensure all synths are ready
         setTimeout(() => {
           setIsInitialized(true)
-          console.log('✅ isInitialized set to true')
+          devLog('✅ isInitialized set to true')
         }, 100)
         
       } catch (error) {
@@ -126,7 +127,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
     if (midiData && midiData.tracks && audioContextReady) {
       initSynths()
     } else {
-      console.log('⏳ Waiting for conditions:', { 
+      devLog('⏳ Waiting for conditions:', { 
         hasMidiData: !!midiData, 
         hasTracks: !!midiData?.tracks, 
         audioContextReady 
@@ -144,7 +145,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
   // Play MIDI notes for all tracks
   const playMIDINotes = useCallback(async (tracks, startTime = 0) => {
     const hasSynths = Object.keys(synthRef.current).length > 0
-    console.log('🎵 playMIDINotes called with:', { 
+    devLog('🎵 playMIDINotes called with:', { 
       hasSynths, 
       isInitialized, 
       tracksCount: tracks?.length,
@@ -153,11 +154,11 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
     })
     
     if (!hasSynths || !isInitialized || !tracks) {
-      console.log('❌ MIDI Player not ready for playback:', { hasSynths, isInitialized, hasTracks: !!tracks })
+      devLog('❌ MIDI Player not ready for playback:', { hasSynths, isInitialized, hasTracks: !!tracks })
       return
     }
 
-    console.log('✅ All conditions met, proceeding with note scheduling...')
+    devLog('✅ All conditions met, proceeding with note scheduling...')
     
     // Get BPM from MIDI file (backend already converted ticks to seconds)
     const bpm = midiData?.bpm || 120
@@ -193,12 +194,12 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
     })
     scheduledNotesRef.current = []
     
-    console.log('🧹 Cleared all previously scheduled Transport events')
+    devLog('🧹 Cleared all previously scheduled Transport events')
 
     // Schedule notes for each track
-    console.log('🎵 Starting to process tracks:', tracks.map(t => t.name))
+    devLog('🎵 Starting to process tracks:', tracks.map(t => t.name))
     tracks.forEach(track => {
-      console.log(`🎵 Processing track: ${track.name}`, {
+      devLog(`🎵 Processing track: ${track.name}`, {
         hasSynth: !!synthRef.current[track.name],
         isMuted: trackMutes[track.name],
         notesCount: track.notes?.length || 0,
@@ -206,7 +207,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
       })
       
       if (!synthRef.current[track.name] || trackMutes[track.name]) {
-        console.log(`⏭️ Skipping track: ${track.name} (no synth or muted)`)
+        devLog(`⏭️ Skipping track: ${track.name} (no synth or muted)`)
         return // Skip muted tracks or tracks without synthesizers
       }
 
@@ -215,13 +216,13 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
         return note.time >= startTime
       })
       
-      console.log(`🎵 Notes to play for ${track.name}:`, notesToPlay.length, 'out of', track.notes?.length || 0, 'total notes')
+      devLog(`🎵 Notes to play for ${track.name}:`, notesToPlay.length, 'out of', track.notes?.length || 0, 'total notes')
       
       if (notesToPlay.length > 0) {
         // note.time is already in seconds from backend
         const firstNoteTime = notesToPlay[0].time
         const firstNoteRelative = firstNoteTime - startTime
-        console.log(`🎵 First note for ${track.name}:`, {
+        devLog(`🎵 First note for ${track.name}:`, {
           absoluteSeconds: firstNoteTime.toFixed(3),
           relativeSeconds: firstNoteRelative.toFixed(3),
           startTime: startTime
@@ -306,7 +307,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
     tracks.forEach(track => {
       if (track.notes && noteCount < 5) {
         track.notes.slice(0, Math.min(5 - noteCount, track.notes.length)).forEach(note => {
-          const absoluteTime = ticksToSeconds(note.time)
+          const absoluteTime = note.time // Already in seconds from backend
           const relativeTime = absoluteTime - startTime
           console.log(`  - ${note.midi} at +${relativeTime.toFixed(3)}s (absolute: ${absoluteTime.toFixed(3)}s)`)
           noteCount++
@@ -367,7 +368,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
   // Handle playback start/stop
   useEffect(() => {
     const hasSynths = Object.keys(synthRef.current).length > 0
-    console.log('🎵 Playback useEffect triggered:', { 
+    devLog('🎵 Playback useEffect triggered:', { 
       hasMidiData: !!midiData, 
       isInitialized, 
       hasSynths,
@@ -375,17 +376,17 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
     })
     
     if (!midiData || !isInitialized || !hasSynths) {
-      console.log('MIDI Player not ready:', { hasMidiData: !!midiData, isInitialized, hasSynths })
+      devLog('MIDI Player not ready:', { hasMidiData: !!midiData, isInitialized, hasSynths })
       return
     }
 
     if (isPlaying) {
       // Start playing from current time
-      console.log('Starting MIDI playback for tracks:', midiData.tracks.map(t => t.name))
+      devLog('Starting MIDI playback for tracks:', midiData.tracks.map(t => t.name))
       playMIDINotes(midiData.tracks, currentTime)
     } else {
       // Stop all scheduled notes and Transport
-      console.log('Stopping MIDI playback')
+      devLog('Stopping MIDI playback')
       
       // Cancel all Transport events
       Tone.Transport.cancel(0)
@@ -401,13 +402,13 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
       scheduledNotesRef.current = []
       setActiveNotes([]) // Clear active notes
       
-      console.log('🛑 All Transport events cancelled and stopped')
+      devLog('🛑 All Transport events cancelled and stopped')
     }
   }, [isPlaying, midiData, isInitialized, playMIDINotes]) // Removed currentTime to prevent infinite loop
 
   // Handle seek (only when manually triggered, not during playback)
   const handleSeek = useCallback((newTime) => {
-    console.log('Seeking MIDI playback to:', newTime)
+    devLog('Seeking MIDI playback to:', newTime)
     
     const hasSynths = Object.keys(synthRef.current).length > 0
     if (midiData && isInitialized && hasSynths) {
@@ -451,7 +452,7 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
 
   // Test function to verify synthesizers work
   const testSynth = useCallback(async () => {
-    console.log('🧪 Testing synthesizer...')
+    devLog('🧪 Testing synthesizer...')
     
     if (Tone.context.state !== 'running') {
       try {
@@ -464,17 +465,17 @@ export const useMIDIPlayer = (midiData, isPlaying, currentTime) => {
     }
 
     const synthNames = Object.keys(synthRef.current)
-    console.log('🧪 Available synths:', synthNames)
+    devLog('🧪 Available synths:', synthNames)
     
     if (synthNames.length > 0) {
       const firstSynth = synthRef.current[synthNames[0]]
-      console.log('🧪 Testing with synth:', synthNames[0])
+      devLog('🧪 Testing with synth:', synthNames[0])
       
       // Play a test note
       firstSynth.triggerAttackRelease('C4', '4n')
-      console.log('🧪 Test note played: C4')
+      devLog('🧪 Test note played: C4')
     } else {
-      console.log('❌ No synthesizers available for testing')
+      devLog('❌ No synthesizers available for testing')
     }
   }, [])
 
