@@ -10,6 +10,7 @@ import { useMIDIPlayer } from './hooks/useMIDIPlayer'
 import { useAudioPlayer } from './hooks/useAudioPlayer'
 import { testBackendConnection } from './utils/testBackendConnection'
 import { uploadMIDIFile } from './services/apiService'
+import { devLog, devWarn } from './utils/logger'
 
 function App() {
   const [selectedFile, setSelectedFile] = useState(null)
@@ -47,24 +48,24 @@ function App() {
 
   // Check Electron API availability and test backend connection
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development' && window.electronAPI) {
-      console.log('Electron API available with methods:', Object.keys(window.electronAPI))
+    if (window.electronAPI) {
+      devLog('Electron API available with methods:', Object.keys(window.electronAPI))
     }
     
     // Test backend connection on app start
     testBackendConnection().then(result => {
       if (result.success) {
-        console.log('✅ Backend connection successful')
+        devLog('✅ Backend connection successful')
       } else {
-        console.warn('⚠️ Backend connection failed:', result.error)
+        devWarn('⚠️ Backend connection failed:', result.error)
       }
     })
   }, [])
 
   // Log MIDI state changes (development only)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development' && selectedMidi) {
-      console.log('MIDI state:', { selectedMidi, isPlaying, currentTime: currentTime.toFixed(1) })
+    if (selectedMidi) {
+      devLog('MIDI state:', { selectedMidi, isPlaying, currentTime: currentTime.toFixed(1) })
     }
   }, [selectedMidi, isPlaying, currentTime])
 
@@ -121,7 +122,7 @@ function App() {
           if (file) {
             setSelectedFile(file) // Pass the actual file object for backend processing
             setSelectedMidi(null)
-            console.log('Audio file selected:', file.name)
+            devLog('Audio file selected:', file.name)
           }
         }
         input.click()
@@ -148,10 +149,10 @@ function App() {
 
     try {
       const result = await uploadMIDIFile(file)
-      console.log('MIDI file uploaded successfully:', result)
+      devLog('MIDI file uploaded successfully:', result)
       
       // Imposta il file MIDI caricato come selezionato
-      console.log('🎵 Setting selectedMidi to:', file.name)
+      devLog('🎵 Setting selectedMidi to:', file.name)
       setSelectedMidi(file.name)
       setSelectedFile(null) // Reset audio file selection
       

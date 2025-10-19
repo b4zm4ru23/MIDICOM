@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react'
 import { Play, Volume2 } from 'lucide-react'
 import * as Tone from 'tone'
+import { devLog } from '../utils/logger'
 
 /**
  * AudioInitializer Component

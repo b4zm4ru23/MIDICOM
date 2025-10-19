@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import * as Tone from 'tone'
+import { devLog } from '../utils/logger'
 
 // Backend API configuration
 const API_BASE_URL = 'http://localhost:8000'
@@ -26,14 +27,14 @@ export const useAudioPlayer = (stems) => {
       try {
         // Only initialize if AudioContext is already running
         if (Tone.context.state !== 'running') {
-          console.log('AudioContext not ready, skipping audio player initialization')
+          devLog('AudioContext not ready, skipping audio player initialization')
           setLoading(false)
           return
         }
 
         // Create players for each stem
         const stemEntries = Object.entries(stems)
-        console.log('Initializing audio players for stems:', stemEntries.map(([name]) => name))
+        devLog('Initializing audio players for stems:', stemEntries.map(([name]) => name))
 
         for (const [name, path] of stemEntries) {
           if (playersRef.current[name]) {
@@ -50,7 +51,7 @@ export const useAudioPlayer = (stems) => {
           playersRef.current[name] = new Tone.Player({
             url: audioUrl,
             onload: () => {
-              console.log(`Stem ${name} loaded successfully`)
+              devLog(`Stem ${name} loaded successfully`)
               // Set duration from the first loaded stem
               if (Object.keys(stemVolumes).length === 0) {
                 setDuration(playersRef.current[name].buffer.duration)
@@ -74,7 +75,7 @@ export const useAudioPlayer = (stems) => {
         Tone.Transport.bpm.value = 120
         Tone.Transport.timeSignature = [4, 4]
 
-        console.log('Audio players initialized successfully')
+        devLog('Audio players initialized successfully')
       } catch (error) {
         console.error('Error initializing audio players:', error)
         setError('Failed to initialize audio players')
@@ -132,7 +133,7 @@ export const useAudioPlayer = (stems) => {
       if (Object.keys(playersRef.current).length > 0) {
         Object.entries(playersRef.current).forEach(([name, player]) => {
           if (player && player.loaded && !stemMutes[name]) {
-            console.log(`Starting playback for stem: ${name}`)
+            devLog(`Starting playback for stem: ${name}`)
             player.start()
           }
         })
@@ -141,7 +142,7 @@ export const useAudioPlayer = (stems) => {
       // Start transport (this will trigger the playhead movement)
       Tone.Transport.start()
       setIsPlaying(true)
-      console.log('Audio stems playback started')
+      devLog('Audio stems playback started')
     } catch (error) {
       console.error('Error playing stems:', error)
       setError('Failed to start audio playback')
