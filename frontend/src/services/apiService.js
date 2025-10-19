@@ -1,4 +1,6 @@
 // API service for backend communication
+import { devWarn } from '../utils/logger'
+
 const API_BASE_URL = 'http://localhost:8000'
 
 /**
@@ -155,7 +157,7 @@ export const isBackendAvailable = async () => {
     await getBackendStatus()
     return true
   } catch (error) {
-    console.warn('Backend not available:', error.message)
+    devWarn('Backend not available:', error.message)
     return false
   }
 }
